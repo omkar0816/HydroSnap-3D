@@ -165,11 +165,15 @@ export async function recoverInterruptedSync(): Promise<number> {
   return recovered
 }
 
-/** Adds a new observation to the queue as "pending" (never overwrites a synced one). */
+/** Adds a new observation to the queue, but never overwrites a synced record. */
 export async function enqueueObservation(
   observation: FieldObservation,
 ): Promise<QueuedObservation> {
   const existing = await getQueued(observation.id)
+  if (existing?.syncStatus === "synced") {
+    return existing
+  }
+
   const record = existing
     ? { ...existing, observation }
     : newQueueRecord(observation)

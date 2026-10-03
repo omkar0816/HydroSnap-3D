@@ -75,4 +75,24 @@ describe("offline queue", () => {
     expect(latest?.observation.verificationStatus).toBe("Verified")
     expect(latest?.observation.auditHistory).toHaveLength(1)
   })
+
+  it("does not overwrite a record that is already synced", async () => {
+    const original = observation("synced-record")
+    const synced = await enqueueObservation(original)
+    await updateQueued(synced.id, (current) =>
+      current ? { ...current, syncStatus: "synced" } : current,
+    )
+
+    const updatedObservation = {
+      ...original,
+      description: "This should not replace the synced record.",
+    }
+    const result = await enqueueObservation(updatedObservation)
+
+    expect(result.syncStatus).toBe("synced")
+    expect(result.observation.description).toBe(original.description)
+    expect((await listQueue()).find(({ id }) => id === synced.id)?.observation.description).toBe(
+      original.description,
+    )
+  })
 })

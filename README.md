@@ -38,6 +38,10 @@ cp .env.example .env.local # optional; defaults to the demo API
 pnpm dev          # http://localhost:8443 (or the PORT environment variable)
 ```
 
+Open the URL printed by Vite. Do not use VS Code's **Go Live** / Live Server:
+it serves `index.html` as static files and cannot compile the React TypeScript
+entrypoint.
+
 Checks:
 
 ```sh
