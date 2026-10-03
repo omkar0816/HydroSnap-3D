@@ -1,0 +1,270 @@
+/* Styles for components added in the Phase 0–3 prototype pass.
+   Kept separate from src/index.css so existing design tokens are untouched. */
+
+.hs-demo-badge {
+  display: inline-flex;
+  align-items: center;
+  gap: 5px;
+  padding: 3px 9px;
+  border-radius: 999px;
+  border: 1px dashed #d99a2b;
+  background: #fff7e8;
+  color: #94600c;
+  font-size: 11px;
+  font-weight: 700;
+  letter-spacing: 0.02em;
+  white-space: nowrap;
+}
+
+/* Map labels rendered as HTML markers (no glyph server required). */
+.hs-asset-label {
+  pointer-events: none;
+  font: 600 10px/1.2 system-ui, sans-serif;
+  color: #173653;
+  text-shadow:
+    0 0 2px #fff,
+    0 0 3px #fff,
+    0 0 4px #fff;
+  white-space: nowrap;
+}
+.hs-watershed-label {
+  pointer-events: none;
+  font: 700 11px/1.2 system-ui, sans-serif;
+  color: #155a41;
+  text-transform: uppercase;
+  letter-spacing: 0.06em;
+  text-shadow:
+    0 0 3px #fff,
+    0 0 5px #fff;
+  white-space: nowrap;
+}
+
+.hs-legend {
+  position: absolute;
+  left: 12px;
+  bottom: 44px;
+  z-index: 2;
+  background: #fff;
+  border: 1px solid #e4eaf0;
+  border-radius: 8px;
+  padding: 8px 10px;
+  font-size: 11px;
+  min-width: 150px;
+  box-shadow: 0 4px 14px rgba(18, 59, 99, 0.08);
+}
+.hs-legend-ramp {
+  display: flex;
+  margin: 6px 0 3px;
+}
+.hs-legend-ramp i {
+  flex: 1;
+  height: 8px;
+}
+.hs-legend-scale {
+  display: flex;
+  justify-content: space-between;
+  color: #6b7c8f;
+}
+
+.hs-watershed-search {
+  display: grid;
+  gap: 8px;
+  padding: 0 0 12px;
+}
+.hs-search-results {
+  display: grid;
+  border: 1px solid #e4eaf0;
+  border-radius: 8px;
+  overflow: hidden;
+}
+.hs-search-results button {
+  display: grid;
+  text-align: left;
+  padding: 7px 10px;
+  background: #fff;
+  border: 0;
+  border-bottom: 1px solid #eef2f6;
+  cursor: pointer;
+}
+.hs-search-results button:hover {
+  background: #f2f8f5;
+}
+.hs-search-results small {
+  color: #6b7c8f;
+}
+.hs-which-button {
+  display: inline-flex;
+  align-items: center;
+  justify-content: center;
+  gap: 6px;
+  padding: 7px 10px;
+  border-radius: 8px;
+  border: 1px solid #cfe3d8;
+  background: #f2f8f5;
+  color: #155a41;
+  font-weight: 600;
+  font-size: 12px;
+  cursor: pointer;
+}
+.hs-metric-select {
+  display: grid;
+  gap: 4px;
+  font-size: 11px;
+  color: #6b7c8f;
+}
+.hs-metric-select select {
+  padding: 6px 8px;
+  border-radius: 8px;
+  border: 1px solid #dde5ec;
+  background: #fff;
+}
+
+.hs-watershed-panel {
+  position: absolute;
+  right: 12px;
+  bottom: 44px;
+  z-index: 3;
+  width: min(300px, calc(100% - 24px));
+  background: #fff;
+  border: 1px solid #e4eaf0;
+  border-radius: 12px;
+  padding: 14px;
+  box-shadow: 0 10px 30px rgba(18, 59, 99, 0.14);
+}
+.hs-watershed-panel h3 {
+  margin: 6px 0 2px;
+}
+.hs-panel-kicker {
+  display: flex;
+  gap: 8px;
+  align-items: center;
+  font-size: 10px;
+  font-weight: 700;
+  letter-spacing: 0.08em;
+  color: #2d8b65;
+}
+.hs-panel-sub,
+.hs-panel-source,
+.hs-muted {
+  color: #6b7c8f;
+  font-size: 12px;
+}
+.hs-panel-grid {
+  display: grid;
+  grid-template-columns: repeat(3, 1fr);
+  gap: 8px;
+  margin: 10px 0;
+}
+.hs-panel-grid dt {
+  font-size: 10px;
+  color: #8b9aab;
+  text-transform: uppercase;
+}
+.hs-panel-grid dd {
+  margin: 0;
+  font-weight: 700;
+  font-size: 13px;
+}
+
+.hs-sync-button {
+  display: inline-flex;
+  align-items: center;
+  gap: 6px;
+  padding: 6px 10px;
+  border-radius: 999px;
+  border: 1px solid #cfe3d8;
+  background: #f2f8f5;
+  color: #155a41;
+  font-size: 12px;
+  font-weight: 600;
+  cursor: pointer;
+  white-space: nowrap;
+}
+.hs-sync-button.waiting {
+  border-color: #f0d29b;
+  background: #fff7e8;
+  color: #94600c;
+}
+.hs-sync-button.offline {
+  border-color: #e8b4b4;
+  background: #fdf0f0;
+  color: #a33a3a;
+}
+.hs-sync-popover {
+  min-width: 260px;
+}
+.hs-sync-popover .text-button {
+  display: inline-flex;
+  align-items: center;
+  gap: 5px;
+}
+
+.hs-trust-panel h3 {
+  margin: 4px 0 8px;
+}
+.hs-trust-reasons {
+  list-style: none;
+  padding: 0;
+  margin: 10px 0;
+  display: grid;
+  gap: 6px;
+  font-size: 12px;
+}
+.hs-trust-reasons li {
+  display: flex;
+  gap: 6px;
+  align-items: flex-start;
+}
+.hs-reason-critical {
+  color: #a33a3a;
+}
+.hs-reason-warning {
+  color: #94600c;
+}
+.hs-reason-info {
+  color: #2d6b52;
+}
+.hs-hash {
+  font-family: ui-monospace, monospace;
+  font-size: 11px;
+  color: #6b7c8f;
+}
+.hs-footnote {
+  font-size: 11px;
+  color: #8b9aab;
+  margin-top: 8px;
+}
+.status-red {
+  background: #fdecec;
+  color: #a33a3a;
+}
+.hs-note-ok {
+  color: #2d6b52;
+}
+.hs-note-warn {
+  color: #a33a3a;
+}
+
+.hs-evidence-detail {
+  display: grid;
+  grid-template-columns: minmax(0, 220px) minmax(0, 1fr) minmax(0, 1fr);
+  gap: 14px;
+  padding: 14px;
+  border-top: 1px solid #eef2f6;
+}
+.hs-evidence-detail img {
+  width: 100%;
+  border-radius: 8px;
+  object-fit: cover;
+}
+.hs-audit ul {
+  padding-left: 16px;
+  font-size: 12px;
+  display: grid;
+  gap: 4px;
+}
+@media (max-width: 900px) {
+  .hs-evidence-detail {
+    grid-template-columns: 1fr;
+  }
+}

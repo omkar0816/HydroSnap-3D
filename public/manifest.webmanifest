@@ -1,0 +1,17 @@
+{
+  "name": "HydroSnap 3D",
+  "short_name": "HydroSnap",
+  "description": "Watershed monitoring and field evidence",
+  "start_url": "/",
+  "display": "standalone",
+  "background_color": "#f5f8fc",
+  "theme_color": "#123b63",
+  "icons": [
+    {
+      "src": "/icon.svg",
+      "sizes": "any",
+      "type": "image/svg+xml",
+      "purpose": "any maskable"
+    }
+  ]
+}
