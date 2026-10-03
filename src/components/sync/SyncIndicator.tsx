@@ -52,7 +52,7 @@ export function SyncIndicator() {
           : "All synced"
 
   return (
-    <div className="popover-anchor">
+    <div className="popover-anchor topbar-sync">
       <button
         className={`hs-sync-button ${
           !online ? "offline" : waiting || syncError ? "waiting" : ""

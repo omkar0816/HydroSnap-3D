@@ -16,7 +16,6 @@ import {
   LifeBuoy,
   Map,
   Menu,
-  PanelLeftClose,
   Search,
   Settings,
   ShieldCheck,
@@ -163,7 +162,10 @@ export function AppLayout({
           onClick={() => setMobileOpen(false)}
         />
       )}
-      <aside className={`sidebar ${mobileOpen ? "mobile-open" : ""}`}>
+      <aside
+        id="primary-navigation"
+        className={`sidebar ${mobileOpen ? "mobile-open" : ""}`}
+      >
         <Link
           to="/"
           className="brand"
@@ -248,14 +250,16 @@ export function AppLayout({
           </div>
           <button
             className="collapse-button"
+            aria-label={collapsed ? "Expand sidebar" : "Collapse sidebar"}
+            aria-expanded={!collapsed}
             onClick={() => setCollapsed((value) => !value)}
           >
             {collapsed ? (
-              <PanelLeftClose size={17} />
+              <ChevronRight size={17} />
             ) : (
               <ChevronLeft size={17} />
             )}
-            <span>Collapse sidebar</span>
+            <span>{collapsed ? "Expand sidebar" : "Collapse sidebar"}</span>
           </button>
         </div>
       </aside>
@@ -266,6 +270,8 @@ export function AppLayout({
             <button
               className="icon-button mobile-menu-button"
               aria-label="Open navigation"
+              aria-expanded={mobileOpen}
+              aria-controls="primary-navigation"
               onClick={() => setMobileOpen(true)}
             >
               <Menu size={20} />
