@@ -12,7 +12,7 @@ export interface GeoLocation {
   type: "Point"
   coordinates: WGS84Position
   accuracyMeters?: number
-  source: "exif" | "device" | "manual" | "demo"
+  source: "exif" | "device" | "manual" | "demo" | "snapped"
   capturedAt?: string
 }
 
@@ -110,6 +110,7 @@ export interface FieldObservation {
 
 export interface ExifSummary {
   hasGps: boolean
+  /** EXIF camera wall time; no timezone is assumed when one is not present. */
   takenAt?: string
   make?: string
   model?: string

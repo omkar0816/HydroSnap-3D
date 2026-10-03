@@ -10,6 +10,7 @@ export function SyncIndicator() {
   const queryClient = useQueryClient()
   const [records, setRecords] = useState<QueuedObservation[]>([])
   const [syncing, setSyncing] = useState(false)
+  const [syncError, setSyncError] = useState<string>()
   const [online, setOnline] = useState(
     typeof navigator === "undefined" ? true : navigator.onLine,
   )
@@ -23,7 +24,7 @@ export function SyncIndicator() {
     const stop = startAutoSync(() => {
       void queryClient.invalidateQueries({ queryKey: ["assets"] })
       void queryClient.invalidateQueries({ queryKey: ["observations"] })
-    })
+    }, setSyncError)
     const update = () => setOnline(navigator.onLine)
     window.addEventListener("online", update)
     window.addEventListener("offline", update)
@@ -44,14 +45,18 @@ export function SyncIndicator() {
     ? `Offline · ${waiting} queued`
     : syncing
       ? "Syncing…"
-      : waiting
-        ? `${waiting} to sync`
-        : "All synced"
+      : syncError
+        ? "Sync unavailable"
+        : waiting
+          ? `${waiting} to sync`
+          : "All synced"
 
   return (
     <div className="popover-anchor">
       <button
-        className={`hs-sync-button ${!online ? "offline" : waiting ? "waiting" : ""}`}
+        className={`hs-sync-button ${
+          !online ? "offline" : waiting || syncError ? "waiting" : ""
+        }`}
         onClick={() => setOpen((value) => !value)}
         aria-label="Sync status"
       >
@@ -67,6 +72,11 @@ export function SyncIndicator() {
       {open && (
         <div className="popover hs-sync-popover">
           <div className="popover-title">Field sync</div>
+          {syncError && (
+            <p className="hs-muted" role="alert">
+              Could not access the offline queue: {syncError}
+            </p>
+          )}
           <p>
             {pending} pending · {failed} failed · {synced} synced
           </p>
@@ -91,14 +101,23 @@ export function SyncIndicator() {
           <button
             className="text-button"
             disabled={!online || syncing}
-            onClick={() =>
-              void syncNow(true).then(() => {
-                void queryClient.invalidateQueries({ queryKey: ["assets"] })
-                void queryClient.invalidateQueries({
-                  queryKey: ["observations"],
+            onClick={() => {
+              void syncNow(true)
+                .then(() => {
+                  setSyncError(undefined)
+                  void queryClient.invalidateQueries({ queryKey: ["assets"] })
+                  void queryClient.invalidateQueries({
+                    queryKey: ["observations"],
+                  })
                 })
-              })
-            }
+                .catch((error: unknown) => {
+                  setSyncError(
+                    error instanceof Error
+                      ? error.message
+                      : "Could not sync offline records.",
+                  )
+                })
+            }}
           >
             <RefreshCw size={13} /> Sync now
           </button>

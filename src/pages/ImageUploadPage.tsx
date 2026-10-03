@@ -31,6 +31,7 @@ import {
   toGeoLocation,
 } from "@/utils/geo"
 import { assessTrust, isStreamBased, sha256Hex } from "@/utils/trust"
+import { indiaDate, normalizeExifDateTime } from "@/utils/dates"
 import type {
   ExifSummary,
   FieldObservation,
@@ -63,6 +64,7 @@ export function ImageUploadPage() {
   const { watersheds, saveObservation } = data
   const currentUser = data.currentUser.data
   const fileInput = useRef<HTMLInputElement>(null)
+  const fileSelectionId = useRef(0)
   const [file, setFile] = useState<File>()
   const [preview, setPreview] = useState("")
   const [exifLocation, setExifLocation] = useState<GeoLocation>()
@@ -84,7 +86,7 @@ export function ImageUploadPage() {
     const layer = (data.layers.data ?? []).find(({ id }) => id === "streams")
     const geometry = layer?.geometry
     return geometry?.type === "FeatureCollection"
-      ? (geometry as FeatureCollection<LineStringGeometry>)
+      ? geometry as FeatureCollection<LineStringGeometry>
       : undefined
   }, [data.layers.data])
 
@@ -95,7 +97,7 @@ export function ImageUploadPage() {
       watershedId: context?.watershedId ?? "",
       village: "",
       description: "",
-      inspectionDate: new Date().toISOString().slice(0, 10),
+      inspectionDate: indiaDate(),
     },
   })
   const watchedValues = form.watch()
@@ -185,46 +187,81 @@ export function ImageUploadPage() {
     return () => URL.revokeObjectURL(url)
   }, [file])
 
-  async function selectFile(selected?: File) {
-    setError("")
-    setSaved(false)
+  function clearImageSelection() {
+    fileSelectionId.current++
+    if (fileInput.current) fileInput.current.value = ""
+    setFile(undefined)
+    setPreview("")
     setExifLocation(undefined)
     setCandidateLocation(undefined)
     setConfirmedLocation(undefined)
+    setCoordinateText("")
     setLocationMessage("")
     setLocationError("")
+    setExtracting(false)
+    setError("")
+    setSaved(false)
+    setExifSummary(undefined)
+    setImageHash(undefined)
+    setWatershedNote("")
+    setShowLocationPicker(false)
+  }
+
+  async function selectFile(selected?: File) {
     if (!selected) return
+    clearImageSelection()
+    const selectionId = fileSelectionId.current
     if (!selected.type.startsWith("image/")) {
-      setFile(undefined)
-      setError("Choose a supported image file.")
+      setError("Choose a browser-previewable image file.")
+      return
+    }
+    if (
+      /\.hei[cf]$/i.test(selected.name) ||
+      /image\/hei[cf]/i.test(selected.type)
+    ) {
+      setError(
+        "HEIC images are not supported. Choose a JPG, PNG, or previewable image.",
+      )
       return
     }
     if (selected.size > 20 * 1024 * 1024) {
-      setFile(undefined)
       setError("Choose an image smaller than 20 MB.")
       return
     }
+    if (!(await canPreviewImage(selected))) {
+      if (selectionId === fileSelectionId.current) {
+        setError("This browser cannot preview the selected image format.")
+      }
+      return
+    }
+    if (selectionId !== fileSelectionId.current) return
     setFile(selected)
     setExtracting(true)
-    setExifSummary(undefined)
-    setImageHash(undefined)
-    void sha256Hex(selected).then(setImageHash).catch(() => undefined)
+    void sha256Hex(selected)
+      .then((hash) => {
+        if (selectionId === fileSelectionId.current) setImageHash(hash)
+      })
+      .catch(() => undefined)
     try {
       const tags = (await exifr
-        .parse(selected, ["DateTimeOriginal", "Make", "Model"])
-        .catch(() => undefined)) as
-        | { DateTimeOriginal?: Date; Make?: string; Model?: string }
-        | undefined
+        .parse(selected, {
+          pick: ["DateTimeOriginal", "Make", "Model"],
+          reviveValues: false,
+        })
+        .catch(() => undefined)) as {
+        DateTimeOriginal?: string | Date
+        Make?: string
+        Model?: string
+      } | undefined
       const gps = await exifr.gps(selected).catch(() => undefined)
+      if (selectionId !== fileSelectionId.current) return
       setExifSummary({
         hasGps: Boolean(
-          gps && Number.isFinite(gps.latitude) && Number.isFinite(gps.longitude),
+          gps &&
+            Number.isFinite(gps.latitude) &&
+            Number.isFinite(gps.longitude),
         ),
-        takenAt:
-          tags?.DateTimeOriginal instanceof Date &&
-          !Number.isNaN(tags.DateTimeOriginal.getTime())
-            ? tags.DateTimeOriginal.toISOString()
-            : undefined,
+        takenAt: normalizeExifDateTime(tags?.DateTimeOriginal),
         make: tags?.Make,
         model: tags?.Model,
       })
@@ -248,11 +285,13 @@ export function ImageUploadPage() {
         )
       }
     } catch {
-      setLocationMessage(
-        "Image metadata could not be read. You can set the location manually.",
-      )
+      if (selectionId === fileSelectionId.current) {
+        setLocationMessage(
+          "Image metadata could not be read. You can set the location manually.",
+        )
+      }
     } finally {
-      setExtracting(false)
+      if (selectionId === fileSelectionId.current) setExtracting(false)
     }
   }
 
@@ -417,7 +456,7 @@ export function ImageUploadPage() {
           ? {
               type: "Point",
               coordinates: streamSnap.position,
-              source: confirmedLocation.source,
+              source: "snapped",
             }
           : undefined,
         snapDistanceMeters: streamSnap?.distanceMeters,
@@ -506,16 +545,8 @@ export function ImageUploadPage() {
             <button
               className="button button-secondary"
               onClick={() => {
-                setFile(undefined)
-                setPreview("")
-                setSaved(false)
+                clearImageSelection()
                 form.reset()
-                setConfirmedLocation(undefined)
-                setCandidateLocation(undefined)
-                setExifLocation(undefined)
-                setExifSummary(undefined)
-                setImageHash(undefined)
-                setCoordinateText("")
               }}
             >
               Add another observation
@@ -540,7 +571,7 @@ export function ImageUploadPage() {
               <input
                 ref={fileInput}
                 type="file"
-                accept="image/*"
+                accept="image/jpeg,image/png,image/gif,image/webp,image/avif,image/bmp"
                 className="visually-hidden"
                 onChange={(event) => void selectFile(event.target.files?.[0])}
               />
@@ -562,13 +593,7 @@ export function ImageUploadPage() {
                     <button
                       type="button"
                       aria-label="Remove image"
-                      onClick={() => {
-                        setFile(undefined)
-                        setPreview("")
-                        setExifLocation(undefined)
-                        setCandidateLocation(undefined)
-                        setConfirmedLocation(undefined)
-                      }}
+                      onClick={clearImageSelection}
                     >
                       <X size={16} />
                     </button>
@@ -599,7 +624,9 @@ export function ImageUploadPage() {
                   <span>
                     or <u>browse files</u> to upload
                   </span>
-                  <small>JPG, PNG, HEIC · Max 20 MB</small>
+                  <small>
+                    JPG, PNG, or browser-previewable image · Max 20 MB
+                  </small>
                 </button>
               )}
               {error && (
@@ -859,7 +886,7 @@ export function ImageUploadPage() {
                   </small>
                 </span>
                 <span className="officer-verified">
-                  <ShieldCheck size={14} /> Signed in
+                  <CheckCircle2 size={14} /> Officer profile loaded
                 </span>
               </div>
             </section>
@@ -981,7 +1008,19 @@ function sourceLabel(location: GeoLocation): string {
     ? "Image EXIF"
     : location.source === "device"
       ? "Device GPS"
-      : "Manual pin"
+      : location.source === "snapped"
+        ? "Derived stream snap"
+        : "Manual pin"
+}
+
+function canPreviewImage(file: File): Promise<boolean> {
+  const url = URL.createObjectURL(file)
+  return new Promise<boolean>((resolve) => {
+    const image = new Image()
+    image.onload = () => resolve(image.naturalWidth > 0)
+    image.onerror = () => resolve(false)
+    image.src = url
+  }).finally(() => URL.revokeObjectURL(url))
 }
 
 function readFileAsDataUrl(file: File): Promise<string> {

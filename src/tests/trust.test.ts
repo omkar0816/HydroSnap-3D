@@ -1,6 +1,11 @@
 import { describe, expect, it } from "vitest"
 import { watersheds } from "@/services/mock/mockData"
 import { assessTrust } from "@/utils/trust"
+import {
+  calendarDateDistanceDays,
+  indiaDate,
+  normalizeExifDateTime,
+} from "@/utils/dates"
 import type { GeoLocation } from "@/types/domain"
 
 const location: GeoLocation = {
@@ -57,12 +62,28 @@ describe("assessTrust", () => {
     )
   })
 
-  it("flags future timestamps", () => {
-    expect(
-      assessTrust({
-        ...base,
-        exif: { hasGps: true, takenAt: "2027-01-01T00:00:00Z" },
-      }).status,
-    ).toBe("Flagged")
+  it("compares camera and inspection calendar dates without timezone shifts", () => {
+    const result = assessTrust({
+      ...base,
+      exif: { hasGps: true, takenAt: "2027-01-01T00:00:00Z" },
+    })
+    expect(result.status).toBe("Needs review")
+    expect(result.reasons.map(({ code }) => code)).toContain("timestamp-gap")
+  })
+})
+
+describe("date handling", () => {
+  it("uses the India calendar date before the UTC date changes", () => {
+    expect(indiaDate(new Date("2026-09-30T20:00:00.000Z"))).toBe("2026-10-01")
+  })
+
+  it("normalizes EXIF wall times without converting them to UTC", () => {
+    expect(normalizeExifDateTime("2026:09:28 09:00:00")).toBe(
+      "2026-09-28T09:00:00",
+    )
+    expect(calendarDateDistanceDays("2026-09-28T23:45:00Z", "2026-09-28")).toBe(
+      0,
+    )
+    expect(calendarDateDistanceDays("2026-09-28", "2026-10-01")).toBe(3)
   })
 })

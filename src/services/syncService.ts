@@ -1,6 +1,10 @@
 import { env } from "@/config/env"
 import { apiRequest } from "@/services/apiClient"
-import { listQueue, putQueued } from "@/services/offlineStore"
+import {
+  listQueue,
+  recoverInterruptedSync,
+  updateQueued,
+} from "@/services/offlineStore"
 import type { FieldObservation, QueuedObservation } from "@/types/domain"
 
 /**
@@ -24,6 +28,26 @@ export interface SyncSummary {
   attempted: number
   synced: number
   failed: number
+}
+
+export function mergeUploadedObservation(
+  original: FieldObservation,
+  current: FieldObservation,
+  saved: FieldObservation,
+): FieldObservation {
+  const verificationChanged =
+    current.verificationStatus !== original.verificationStatus ||
+    current.auditHistory.length > original.auditHistory.length
+  return {
+    ...original,
+    ...saved,
+    ...(verificationChanged
+      ? {
+          verificationStatus: current.verificationStatus,
+          auditHistory: current.auditHistory,
+        }
+      : {}),
+  }
 }
 
 export function subscribeSync(listener: Listener): () => void {
@@ -61,7 +85,9 @@ export function isDue(record: QueuedObservation, now = Date.now()): boolean {
   return true
 }
 
-async function upload(observation: FieldObservation): Promise<FieldObservation> {
+async function upload(
+  observation: FieldObservation,
+): Promise<FieldObservation> {
   if (env.useMockApi) {
     // DEMO: simulate network latency; nothing leaves the browser.
     await new Promise((resolve) => window.setTimeout(resolve, 400))
@@ -84,66 +110,105 @@ export function syncNow(force = false): Promise<SyncSummary> {
   if (running) return running
   const job = (async () => {
     const summary: SyncSummary = { attempted: 0, synced: 0, failed: 0 }
-    try {
-      if (typeof navigator !== "undefined" && !navigator.onLine) return summary
-      const records = (await listQueue()).filter(
-        (record) =>
-          record.syncStatus !== "synced" &&
-          (force ? record.syncStatus !== "syncing" : isDue(record)),
-      )
-      for (const record of records) {
-        summary.attempted++
-        await putQueued({ ...record, syncStatus: "syncing" })
-        await emit(true)
-        try {
-          const saved = await upload(record.observation)
-          await putQueued({
-            ...record,
-            observation: { ...record.observation, ...saved },
-            syncStatus: "synced",
-            attempts: record.attempts + 1,
-            lastError: undefined,
-            nextAttemptAt: undefined,
-            syncedAt: new Date().toISOString(),
-            demoSync: env.useMockApi,
-          })
-          summary.synced++
-        } catch (error) {
-          const attempts = record.attempts + 1
-          await putQueued({
-            ...record,
+    if (typeof navigator !== "undefined" && !navigator.onLine) return summary
+    const records = (await listQueue()).filter(
+      (record) =>
+        record.syncStatus !== "synced" &&
+        (force ? record.syncStatus !== "syncing" : isDue(record)),
+    )
+    for (const record of records) {
+      let claimed = false
+      const current = await updateQueued(record.id, (latest) => {
+        const eligible = force
+          ? latest?.syncStatus !== "synced" && latest?.syncStatus !== "syncing"
+          : latest !== undefined && isDue(latest)
+        if (!latest || !eligible) {
+          return latest
+        }
+        claimed = true
+        return { ...latest, syncStatus: "syncing" }
+      })
+      if (!claimed || !current) continue
+
+      summary.attempted++
+      await emit(true)
+      let saved: FieldObservation
+      try {
+        saved = await upload(current.observation)
+      } catch (error) {
+        const updated = await updateQueued(record.id, (latest) => {
+          if (!latest) return latest
+          const attempts = latest.attempts + 1
+          return {
+            ...latest,
             syncStatus: "failed",
             attempts,
             lastError: error instanceof Error ? error.message : "Upload failed",
             nextAttemptAt: new Date(
               Date.now() + backoffDelay(attempts),
             ).toISOString(),
-          })
-          summary.failed++
-        }
+          }
+        })
+        if (updated) summary.failed++
+        continue
       }
-      return summary
-    } catch {
-      return summary
+
+      const updated = await updateQueued(record.id, (latest) => {
+        if (!latest) return latest
+        return {
+          ...latest,
+          observation: mergeUploadedObservation(
+            current.observation,
+            latest.observation,
+            saved,
+          ),
+          syncStatus: "synced",
+          attempts: latest.attempts + 1,
+          lastError: undefined,
+          nextAttemptAt: undefined,
+          syncedAt: new Date().toISOString(),
+          demoSync: env.useMockApi,
+        }
+      })
+      if (updated) summary.synced++
     }
+    return summary
   })()
   running = job
-  void job.finally(() => {
+  const cleanup = () => {
     running = undefined
     void emit(false)
-  })
+  }
+  void job.then(cleanup, cleanup)
   return job
 }
 
 /** Starts automatic sync on reconnect and on a timer. Returns a cleanup. */
-export function startAutoSync(onSynced?: () => void): () => void {
-  const run = () =>
-    void syncNow().then((summary) => {
+export function startAutoSync(
+  onSynced?: () => void,
+  onError?: (message: string | undefined) => void,
+): () => void {
+  let recovered = false
+  const run = async () => {
+    try {
+      if (!recovered) {
+        await recoverInterruptedSync()
+        recovered = true
+      }
+      const summary = await syncNow()
+      onError?.(undefined)
       if (summary.synced) onSynced?.()
-    })
+    } catch (error) {
+      onError?.(
+        error instanceof Error
+          ? error.message
+          : "Could not recover or sync offline records.",
+      )
+    }
+  }
   window.addEventListener("online", run)
   const timer = window.setInterval(run, 30_000)
-  run()
+  void run()
   return () => {
     window.removeEventListener("online", run)
     window.clearInterval(timer)

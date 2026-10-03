@@ -63,28 +63,106 @@ function runRequest<T>(
     (db) =>
       new Promise<T>((resolve, reject) => {
         const transaction = db.transaction(queueStore, mode)
-        const request = action(transaction.objectStore(queueStore))
+        let request: IDBRequest<T> | undefined
+        try {
+          request = action(transaction.objectStore(queueStore))
+        } catch (error) {
+          transaction.abort()
+          reject(error)
+          return
+        }
         transaction.oncomplete = () => resolve(request.result)
-        transaction.onerror = () =>
-          reject(transaction.error ?? new Error("Offline storage failed."))
+        transaction.onerror = () => {
+          reject(
+            transaction.error ??
+              request?.error ??
+              new Error("Offline storage failed."),
+          )
+        }
+        transaction.onabort = () => {
+          reject(
+            transaction.error ??
+              request?.error ??
+              new Error("Offline storage transaction was aborted."),
+          )
+        }
       }),
   )
 }
 
 export function listQueue(): Promise<QueuedObservation[]> {
-  return runRequest("readonly", (store) => store.getAll()) as Promise<
-    QueuedObservation[]
-  >
+  return runRequest("readonly", (store) =>
+    store.getAll(),
+  ) as Promise<QueuedObservation[]>
 }
 
 export function getQueued(id: string): Promise<QueuedObservation | undefined> {
-  return runRequest("readonly", (store) => store.get(id)) as Promise<
-    QueuedObservation | undefined
-  >
+  return runRequest("readonly", (store) =>
+    store.get(id),
+  ) as Promise<QueuedObservation | undefined>
 }
 
 export async function putQueued(record: QueuedObservation): Promise<void> {
   await runRequest("readwrite", (store) => store.put(record))
+}
+
+/** Applies one read-modify-write operation atomically within IndexedDB. */
+export function updateQueued(
+  id: string,
+  update: (
+    record: QueuedObservation | undefined,
+  ) => QueuedObservation | undefined,
+): Promise<QueuedObservation | undefined> {
+  return openDatabase().then(
+    (db) =>
+      new Promise<QueuedObservation | undefined>((resolve, reject) => {
+        const transaction = db.transaction(queueStore, "readwrite")
+        const store = transaction.objectStore(queueStore)
+        const request = store.get(id)
+        let updated: QueuedObservation | undefined
+        let updateError: unknown
+        request.onsuccess = () => {
+          try {
+            updated = update(request.result)
+            if (updated) store.put(updated)
+          } catch (error) {
+            updateError = error
+            transaction.abort()
+          }
+        }
+        transaction.oncomplete = () => resolve(updated)
+        transaction.onerror = () =>
+          reject(
+            updateError ??
+              transaction.error ??
+              request.error ??
+              new Error("Offline storage failed."),
+          )
+        transaction.onabort = () =>
+          reject(
+            updateError ??
+              transaction.error ??
+              request.error ??
+              new Error("Offline storage transaction was aborted."),
+          )
+      }),
+  )
+}
+
+/** Returns persisted records abandoned mid-upload to the retryable queue. */
+export async function recoverInterruptedSync(): Promise<number> {
+  const interrupted = (await listQueue()).filter(
+    (record) => record.syncStatus === "syncing",
+  )
+  let recovered = 0
+  for (const record of interrupted) {
+    const updated = await updateQueued(record.id, (current) => {
+      if (!current || current.syncStatus !== "syncing") return current
+      return { ...current, syncStatus: "pending" }
+    })
+    if (updated?.syncStatus === "pending") recovered++
+  }
+  return recovered
 }
 
 /** Adds a new observation to the queue as "pending" (never overwrites a synced one). */

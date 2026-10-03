@@ -26,9 +26,13 @@ import {
 import { DemoBadge } from "@/components/common/DemoBadge"
 import { WatershedPanel } from "@/components/maps/WatershedPanel"
 import { downloadAssetsCsv, downloadAssetsGeoJson } from "@/utils/exporters"
-import { findContainingWatershed, geometryBounds, type Bounds } from "@/utils/geo"
+import {
+  findContainingWatershed,
+  geometryBounds,
+  type Bounds,
+} from "@/utils/geo"
 import { watershedStats } from "@/utils/watershedStats"
-import type { Asset } from "@/types/domain"
+import type { Asset, Watershed } from "@/types/domain"
 import type { ThematicLayer } from "@/types/domain"
 import type {
   Feature,
@@ -55,31 +59,42 @@ const choroplethLabels: Record<Exclude<ChoroplethMetric, "none">, string> = {
   pending: "Pending reviews",
 }
 
+const EMPTY_ASSETS: Asset[] = []
+const EMPTY_WATERSHEDS: Watershed[] = []
+const EMPTY_THEMATIC_LAYERS: ThematicLayer[] = []
+
+const defaultVisibleLayers = {
+  boundary: true,
+  streams: true,
+  assets: true,
+  ndvi: false,
+  ndwi: false,
+}
+
 export function MapAnalysisPage() {
   const context = useContext(AppContext)
   const data = useHydroSnap()
-  const watersheds = data.watersheds.data ?? []
+  const watersheds = data.watersheds.data ?? EMPTY_WATERSHEDS
   const watershed =
     watersheds.find(({ id }) => id === context?.watershedId) ?? watersheds[0]
-  const assets = (data.assets.data ?? []).filter(
-    (asset) => asset.watershedId === watershed?.id,
+  const allAssets = data.assets.data ?? EMPTY_ASSETS
+  const assets = useMemo(
+    () => allAssets.filter((asset) => asset.watershedId === watershed?.id),
+    [allAssets, watershed?.id],
   )
-  const thematicLayers = data.layers.data ?? []
-  const visibleLayers = context?.visibleLayers ?? {
-    boundary: true,
-    streams: true,
-    assets: true,
-    ndvi: false,
-    ndwi: false,
-  }
-  const streamGeometry = lineLayerGeometry(
-    thematicLayers.find(({ id }) => id === "streams"),
+  const thematicLayers = data.layers.data ?? EMPTY_THEMATIC_LAYERS
+  const visibleLayers = context?.visibleLayers ?? defaultVisibleLayers
+  const streamGeometry = useMemo(
+    () => lineLayerGeometry(thematicLayers.find(({ id }) => id === "streams")),
+    [thematicLayers],
   )
-  const ndviGeometry = polygonLayerGeometry(
-    thematicLayers.find(({ id }) => id === "ndvi"),
+  const ndviGeometry = useMemo(
+    () => polygonLayerGeometry(thematicLayers.find(({ id }) => id === "ndvi")),
+    [thematicLayers],
   )
-  const ndwiGeometry = polygonLayerGeometry(
-    thematicLayers.find(({ id }) => id === "ndwi"),
+  const ndwiGeometry = useMemo(
+    () => polygonLayerGeometry(thematicLayers.find(({ id }) => id === "ndwi")),
+    [thematicLayers],
   )
   const [basemap, setBasemap] = useState<Basemap>("standard")
   const [selectedAsset, setSelectedAsset] = useState<Asset>()
@@ -92,7 +107,6 @@ export function MapAnalysisPage() {
   const [watershedQuery, setWatershedQuery] = useState("")
   const [metric, setMetric] = useState<ChoroplethMetric>("none")
   const [center, setCenter] = useState<[number, number]>()
-  const allAssets = data.assets.data ?? []
   const panelWatershed = watersheds.find(({ id }) => id === panelWatershedId)
   const watershedMatches = watershedQuery.trim()
     ? watersheds.filter((item) =>
@@ -177,37 +191,6 @@ export function MapAnalysisPage() {
         ),
       { enableHighAccuracy: true, timeout: 12000, maximumAge: 0 },
     )
-  }
-
-  function lineLayerGeometry(
-    layer?: ThematicLayer,
-  ): FeatureCollection<LineStringGeometry> | undefined {
-    const geometry = layer?.geometry
-    if (!geometry || geometry.type !== "FeatureCollection") return undefined
-    const features = geometry.features.filter(
-      (feature): feature is Feature<LineStringGeometry> =>
-        feature.geometry.type === "LineString",
-    )
-    return { type: "FeatureCollection", features }
-  }
-
-  function polygonLayerGeometry(
-    layer?: ThematicLayer,
-  ): Feature<PolygonGeometry | MultiPolygonGeometry> | undefined {
-    const geometry = layer?.geometry
-    if (
-      !geometry ||
-      geometry.type !== "Feature" ||
-      (geometry.geometry.type !== "Polygon" &&
-        geometry.geometry.type !== "MultiPolygon")
-    ) {
-      return undefined
-    }
-    return {
-      type: "Feature",
-      properties: geometry.properties,
-      geometry: geometry.geometry,
-    }
   }
 
   return (
@@ -453,9 +436,10 @@ export function MapAnalysisPage() {
               choropleth={choropleth}
               focusBounds={focusBounds}
               onSelectWatershed={(id) => {
-                if (watersheds.some((item) => item.id === id)) {
-                  setPanelWatershedId(id)
-                }
+                const target = watersheds.find(
+                  (item) => item.id === id || item.code === id,
+                )
+                if (target) openWatershed(target.id)
               }}
               onCenterChange={setCenter}
               basemap={basemap}
@@ -541,12 +525,43 @@ export function MapAnalysisPage() {
               {watershed?.district ?? "—"} district
             </div>
             <div className="map-data-warning">
-              <Activity size={13} /> DEMO DATA · SAMPLE FEATURES ·
-              {" "}NDVI/NDWI OVERLAYS SIMULATED
+              <Activity size={13} /> DEMO DATA · SAMPLE FEATURES · NDVI/NDWI
+              OVERLAYS SIMULATED
             </div>
           </div>
         </section>
       </div>
     </div>
   )
+}
+
+function lineLayerGeometry(
+  layer?: ThematicLayer,
+): FeatureCollection<LineStringGeometry> | undefined {
+  const geometry = layer?.geometry
+  if (!geometry || geometry.type !== "FeatureCollection") return undefined
+  const features = geometry.features.filter(
+    (feature): feature is Feature<LineStringGeometry> =>
+      feature.geometry.type === "LineString",
+  )
+  return { type: "FeatureCollection", features }
+}
+
+function polygonLayerGeometry(
+  layer?: ThematicLayer,
+): Feature<PolygonGeometry | MultiPolygonGeometry> | undefined {
+  const geometry = layer?.geometry
+  if (
+    !geometry ||
+    geometry.type !== "Feature" ||
+    (geometry.geometry.type !== "Polygon" &&
+      geometry.geometry.type !== "MultiPolygon")
+  ) {
+    return undefined
+  }
+  return {
+    type: "Feature",
+    properties: geometry.properties,
+    geometry: geometry.geometry,
+  }
 }

@@ -72,6 +72,20 @@ const basemapLayers: Record<Basemap, string> = {
   terrain: "basemap-terrain",
 }
 
+const officialWatershedLayers = [
+  { layer: "basins", min: 0, max: 8, color: "#1f5f8b" },
+  { layer: "watersheds", min: 8, max: 11, color: "#2d8b65" },
+  { layer: "micro_watersheds", min: 11, max: 24, color: "#6a8f2d" },
+] as const
+
+export function mapFeatureId(feature: {
+  id?: string | number
+  properties?: Record<string, unknown>
+}): string | number | undefined {
+  const id = feature.properties?.id ?? feature.id
+  return typeof id === "string" || typeof id === "number" ? id : undefined
+}
+
 /**
  * All three basemaps live in one style as raster layers; switching basemap
  * only toggles visibility, so the camera and overlays are preserved.
@@ -195,6 +209,7 @@ export function WatershedMap({
   const containerRef = useRef<HTMLDivElement>(null)
   const mapRef = useRef<MapLibreMap | null>(null)
   const labelMarkers = useRef<maplibregl.Marker[]>([])
+  const officialActiveId = useRef<string | undefined>(undefined)
   const callbacks = useRef({
     onSelectAsset,
     onSelectWatershed,
@@ -363,30 +378,52 @@ export function WatershedMap({
         },
       })
 
-      let hoveredId: string | number | undefined
-      map.on("mousemove", "watershed-fill", (event) => {
-        const id = event.features?.[0]?.id
-        if (id === undefined || id === hoveredId) return
-        if (hoveredId !== undefined) {
-          map.setFeatureState(
-            { source: "watersheds", id: hoveredId },
-            { hover: false },
-          )
-        }
-        hoveredId = id
-        map.setFeatureState({ source: "watersheds", id }, { hover: true })
-        if (!measureRef.current) map.getCanvas().style.cursor = "pointer"
-      })
-      map.on("mouseleave", "watershed-fill", () => {
-        if (hoveredId !== undefined) {
-          map.setFeatureState(
-            { source: "watersheds", id: hoveredId },
-            { hover: false },
-          )
-        }
-        hoveredId = undefined
-        map.getCanvas().style.cursor = measureRef.current ? "crosshair" : ""
-      })
+      let hoveredFeature: {
+        source: string
+        sourceLayer?: string
+        id: string | number
+      } | undefined
+      const interactiveWatershedLayers = [
+        "watershed-fill",
+        ...(env.watershedPmtilesUrl
+          ? officialWatershedLayers.map(({ layer }) => `official-${layer}-fill`)
+          : []),
+      ]
+      for (const layerId of interactiveWatershedLayers) {
+        map.on("mousemove", layerId, (event) => {
+          const feature = event.features?.[0]
+          if (!feature) return
+          const id = mapFeatureId(feature)
+          if (id === undefined) return
+          const target = {
+            source: feature.source,
+            ...(feature.sourceLayer
+              ? { sourceLayer: feature.sourceLayer }
+              : {}),
+            id,
+          }
+          if (
+            target.source === hoveredFeature?.source &&
+            target.sourceLayer === hoveredFeature?.sourceLayer &&
+            target.id === hoveredFeature?.id
+          ) {
+            return
+          }
+          if (hoveredFeature) {
+            map.setFeatureState(hoveredFeature, { hover: false })
+          }
+          hoveredFeature = target
+          map.setFeatureState(target, { hover: true })
+          if (!measureRef.current) map.getCanvas().style.cursor = "pointer"
+        })
+        map.on("mouseleave", layerId, () => {
+          if (hoveredFeature) {
+            map.setFeatureState(hoveredFeature, { hover: false })
+            hoveredFeature = undefined
+          }
+          map.getCanvas().style.cursor = measureRef.current ? "crosshair" : ""
+        })
+      }
       map.on("click", "asset-points", (event) => {
         const id = event.features?.[0]?.properties?.id
         const asset = assetsRef.current.find((item) => item.id === id)
@@ -415,7 +452,12 @@ export function WatershedMap({
         )
         if (watershedHit && callbacks.current.onSelectWatershed) {
           callbacks.current.onSelectWatershed(
-            String(watershedHit.properties.id ?? watershedHit.id ?? ""),
+            String(
+              watershedHit.properties.code ??
+                watershedHit.properties.id ??
+                watershedHit.id ??
+                "",
+            ),
             watershedHit.properties,
           )
         }
@@ -462,11 +504,36 @@ export function WatershedMap({
       fillColorExpression(choropleth),
     )
     drawnWatersheds.forEach((item) =>
-      map.setFeatureState(
-        { source: "watersheds", id: item.id },
-        { active: item.id === watershed?.id },
-      ),
+      map.setFeatureState({ source: "watersheds", id: item.id }, {
+        active: item.id === watershed?.id,
+      }),
     )
+    const activeId = watershed ? watershed.code || watershed.id : undefined
+    if (officialActiveId.current) {
+      for (const { layer } of officialWatershedLayers) {
+        map.setFeatureState(
+          {
+            source: "official-watersheds",
+            sourceLayer: layer,
+            id: officialActiveId.current,
+          },
+          { active: false },
+        )
+      }
+    }
+    if (activeId) {
+      for (const { layer } of officialWatershedLayers) {
+        map.setFeatureState(
+          {
+            source: "official-watersheds",
+            sourceLayer: layer,
+            id: activeId,
+          },
+          { active: true },
+        )
+      }
+    }
+    officialActiveId.current = activeId
   }, [choropleth, drawnWatersheds, mapLoaded, watershed?.id, watershedData])
 
   // Fit to the active watershed when it changes (no map rebuild).
@@ -497,13 +564,19 @@ export function WatershedMap({
     applyThematicLayers(map, streams, ndviOverlay, ndwiOverlay)
   }, [mapLoaded, ndviOverlay, ndwiOverlay, streams])
 
-  // Assets, labels (HTML markers: no glyph server needed) and visibility.
+  // Asset point features only change when the underlying data changes.
   useEffect(() => {
     const map = mapRef.current
     if (!map || !mapLoaded) return
     ;(map.getSource("field-assets") as maplibregl.GeoJSONSource).setData(
       assetData,
     )
+  }, [assetData, mapLoaded])
+
+  // Labels are independent from selection, thematic layers, and map center.
+  useEffect(() => {
+    const map = mapRef.current
+    if (!map || !mapLoaded) return
     labelMarkers.current.forEach((marker) => marker.remove())
     labelMarkers.current = []
     if (visibleLayers.assets) {
@@ -530,6 +603,21 @@ export function WatershedMap({
         )
       }
     }
+    return () => {
+      labelMarkers.current.forEach((marker) => marker.remove())
+      labelMarkers.current = []
+    }
+  }, [
+    assets,
+    drawnWatersheds,
+    mapLoaded,
+    visibleLayers.assets,
+    visibleLayers.boundary,
+  ])
+
+  useEffect(() => {
+    const map = mapRef.current
+    if (!map || !mapLoaded) return
     const visibility = [
       ["watershed-fill", visibleLayers.boundary],
       ["watershed-line", visibleLayers.boundary],
@@ -542,23 +630,18 @@ export function WatershedMap({
       if (map.getLayer(id))
         map.setLayoutProperty(id, "visibility", visible ? "visible" : "none")
     })
+  }, [mapLoaded, visibleLayers])
+
+  useEffect(() => {
+    const map = mapRef.current
+    if (!map || !mapLoaded) return
     map.setPaintProperty("asset-points", "circle-radius", [
       "case",
       ["==", ["get", "id"], selectedAssetId ?? ""],
       9,
       6.5,
     ])
-  }, [
-    assetData,
-    assets,
-    drawnWatersheds,
-    mapLoaded,
-    selectedAssetId,
-    visibleLayers,
-    streams,
-    ndviOverlay,
-    ndwiOverlay,
-  ])
+  }, [mapLoaded, selectedAssetId])
 
   useEffect(() => {
     const map = mapRef.current
@@ -570,9 +653,9 @@ export function WatershedMap({
   useEffect(() => {
     const map = mapRef.current
     if (!map || !mapLoaded) return
-    const source = map.getSource("measurement") as
-      | maplibregl.GeoJSONSource
-      | undefined
+    const source = map.getSource(
+      "measurement",
+    ) as maplibregl.GeoJSONSource | undefined
     const features: Feature[] = measurePoints.map((point) => ({
       type: "Feature",
       properties: {},
@@ -688,13 +771,13 @@ function addOfficialWatershedTiles(map: MapLibreMap) {
     type: "vector",
     url: `pmtiles://${env.watershedPmtilesUrl}`,
     attribution: env.watershedAttribution,
+    promoteId: {
+      basins: "id",
+      watersheds: "id",
+      micro_watersheds: "id",
+    },
   })
-  const levels = [
-    { layer: "basins", min: 0, max: 8, color: "#1f5f8b" },
-    { layer: "watersheds", min: 8, max: 11, color: "#2d8b65" },
-    { layer: "micro_watersheds", min: 11, max: 24, color: "#6a8f2d" },
-  ]
-  for (const level of levels) {
+  for (const level of officialWatershedLayers) {
     map.addLayer({
       id: `official-${level.layer}-fill`,
       type: "fill",
@@ -702,7 +785,17 @@ function addOfficialWatershedTiles(map: MapLibreMap) {
       "source-layer": level.layer,
       minzoom: level.min,
       maxzoom: level.max,
-      paint: { "fill-color": level.color, "fill-opacity": 0.06 },
+      paint: {
+        "fill-color": level.color,
+        "fill-opacity": [
+          "case",
+          ["boolean", ["feature-state", "hover"], false],
+          0.22,
+          ["boolean", ["feature-state", "active"], false],
+          0.16,
+          0.06,
+        ],
+      },
     })
     map.addLayer({
       id: `official-${level.layer}-line`,
@@ -711,7 +804,20 @@ function addOfficialWatershedTiles(map: MapLibreMap) {
       "source-layer": level.layer,
       minzoom: level.min,
       maxzoom: level.max,
-      paint: { "line-color": level.color, "line-width": 1.2 },
+      paint: {
+        "line-color": [
+          "case",
+          ["boolean", ["feature-state", "active"], false],
+          "#155a41",
+          level.color,
+        ],
+        "line-width": [
+          "case",
+          ["boolean", ["feature-state", "active"], false],
+          2.6,
+          1.2,
+        ],
+      },
     })
   }
 }
@@ -723,9 +829,9 @@ function applyThematicLayers(
   ndwi: Feature<PolygonGeometry | MultiPolygonGeometry> | undefined,
 ) {
   if (streams) {
-    const source = map.getSource("streams") as
-      | maplibregl.GeoJSONSource
-      | undefined
+    const source = map.getSource(
+      "streams",
+    ) as maplibregl.GeoJSONSource | undefined
     if (source) source.setData(streams)
     else map.addSource("streams", { type: "geojson", data: streams })
     if (!map.getLayer("streams-line")) {

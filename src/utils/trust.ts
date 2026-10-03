@@ -7,6 +7,7 @@ import type {
   TrustReason,
   Watershed,
 } from "@/types/domain"
+import { calendarDateDistanceDays } from "@/utils/dates"
 
 /**
  * Client-side evidence checks (Phase 3 preview).
@@ -26,7 +27,10 @@ export const trustConfig = {
   maxManualShiftMeters: 250,
 }
 
-export const streamBasedTypes: Asset["type"][] = ["Check dam", "Percolation tank"]
+export const streamBasedTypes: Asset["type"][] = [
+  "Check dam",
+  "Percolation tank",
+]
 
 export function isStreamBased(type: Asset["type"]): boolean {
   return streamBasedTypes.includes(type)
@@ -57,7 +61,8 @@ export function assessTrust(input: TrustInput): TrustAssessment {
     reasons.push({
       code: "exif-gps-missing",
       severity: "warning",
-      message: "No GPS in image metadata; location came from device or a manual pin.",
+      message:
+        "No GPS in image metadata; location came from device or a manual pin.",
     })
   } else {
     reasons.push({
@@ -79,28 +84,18 @@ export function assessTrust(input: TrustInput): TrustAssessment {
     })
   }
 
-  // 3. Timestamp plausibility
+  // 3. Compare calendar dates; EXIF capture times usually carry no timezone.
   if (input.exif?.takenAt) {
-    const taken = new Date(input.exif.takenAt)
-    const inspection = new Date(input.inspectionDate)
-    if (!Number.isNaN(taken.getTime())) {
-      if (taken.getTime() > now.getTime() + 5 * 60_000) {
-        reasons.push({
-          code: "timestamp-future",
-          severity: "critical",
-          message: "Photo timestamp is in the future.",
-        })
-      } else if (!Number.isNaN(inspection.getTime())) {
-        const gapDays =
-          Math.abs(inspection.getTime() - taken.getTime()) / 86_400_000
-        if (gapDays > trustConfig.maxPhotoAgeDays) {
-          reasons.push({
-            code: "timestamp-gap",
-            severity: "warning",
-            message: `Photo was taken ${Math.round(gapDays)} days from the inspection date.`,
-          })
-        }
-      }
+    const gapDays = calendarDateDistanceDays(
+      input.exif.takenAt,
+      input.inspectionDate,
+    )
+    if (gapDays !== undefined && gapDays > trustConfig.maxPhotoAgeDays) {
+      reasons.push({
+        code: "timestamp-gap",
+        severity: "warning",
+        message: `Photo was taken ${gapDays} days from the inspection date.`,
+      })
     }
   } else {
     reasons.push({
@@ -169,7 +164,11 @@ export function assessTrust(input: TrustInput): TrustAssessment {
   const hasCritical = reasons.some((reason) => reason.severity === "critical")
   const hasWarning = reasons.some((reason) => reason.severity === "warning")
   return {
-    status: hasCritical ? "Flagged" : hasWarning ? "Needs review" : "Consistent",
+    status: hasCritical
+      ? "Flagged"
+      : hasWarning
+        ? "Needs review"
+        : "Consistent",
     reasons,
     checkedAt: now.toISOString(),
     engine: "client-preview",

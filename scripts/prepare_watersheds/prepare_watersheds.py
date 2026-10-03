@@ -39,8 +39,15 @@ def normalise(gdf, level: str, mapping: dict[str, str]):
     gdf = gdf.rename(columns={v: k for k, v in mapping.items() if v in gdf.columns})
     gdf = gdf.to_crs(4326)
     gdf["level"] = level.rstrip("s").replace("_", "-")
-    if "id" not in gdf.columns:
-        gdf["id"] = gdf.get("code", gdf.index.astype(str)).astype(str)
+    fallback_ids = (
+        gdf["id"]
+        if "id" in gdf.columns
+        else gdf.index.to_series(index=gdf.index).astype(str)
+    )
+    if "code" in gdf.columns:
+        gdf["id"] = gdf["code"].where(gdf["code"].notna(), fallback_ids).astype(str)
+    else:
+        gdf["id"] = fallback_ids.astype(str)
     if "area_sq_km" not in gdf.columns:
         gdf["area_sq_km"] = (gdf.to_crs(32643).area / 1e6).round(2)  # UTM 43N
     for column in KEEP:
