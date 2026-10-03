@@ -96,6 +96,26 @@
   align-items: center;
   gap: 8px;
 }
+.hs-timeline-presets {
+  display: flex;
+  gap: 6px;
+  margin-top: 7px;
+}
+.hs-timeline-presets button {
+  padding: 4px 9px;
+  border: 1px solid #dce8ed;
+  border-radius: 999px;
+  background: #f7fafb;
+  color: #5d7485;
+  font-size: 10px;
+  font-weight: 600;
+  cursor: pointer;
+}
+.hs-timeline-presets button.active {
+  border-color: #8ab9a0;
+  background: #eaf5ee;
+  color: #155a41;
+}
 .hs-timeline-track {
   flex: 1;
   min-width: 0;
@@ -202,6 +222,9 @@
   }
   .hs-timeline-summary {
     gap: 10px;
+  }
+  .hs-timeline-note {
+    line-height: 1.4;
   }
   .hs-timeline-ticks button {
     font-size: 9px;

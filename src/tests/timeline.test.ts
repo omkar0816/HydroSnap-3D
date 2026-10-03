@@ -17,15 +17,23 @@ describe("timeline steps", () => {
       "H1 2023",
       "H2 2023",
       "H1 2024",
+      "2 years ago",
       "H2 2024",
       "H1 2025",
       "H2 2025",
+      "6 months ago",
       "H1 2026",
       "Now",
     ])
     expect(steps.at(-1)?.date).toBe("2026-10-04")
     expect(steps.at(-1)?.isNow).toBe(true)
     expect(steps.at(-1)?.range).toBe("Jul 2026 – today")
+    expect(steps.find((step) => step.id === "relative-6m")?.date).toBe(
+      "2026-04-04",
+    )
+    expect(steps.find((step) => step.id === "relative-2y")?.date).toBe(
+      "2024-10-04",
+    )
   })
 
   it("chains each step after the previous snapshot date", () => {
@@ -42,6 +50,11 @@ describe("asset filtering", () => {
       "ast-001",
     ])
     expect(assetsAsOf(assets, "2026-10-04")).toHaveLength(assets.length)
+  })
+
+  it("shows the correct asset snapshots six months and two years ago", () => {
+    expect(assetsAsOf(assets, "2026-04-04")).toHaveLength(8)
+    expect(assetsAsOf(assets, "2024-10-04")).toHaveLength(4)
   })
 
   it("lists assets added during the selected period", () => {

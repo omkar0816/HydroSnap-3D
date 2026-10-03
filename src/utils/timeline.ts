@@ -10,6 +10,7 @@ export interface TimelineStep {
   date: string
   from: string
   isNow: boolean
+  presets?: string[]
 }
 
 export interface TimelineSummary {
@@ -62,31 +63,88 @@ function isoDate(date: Date): string {
   return `${date.getFullYear()}-${month}-${day}`
 }
 
+function monthsBefore(date: Date, months: number): string {
+  const year = date.getFullYear()
+  const month = date.getMonth() - months
+  const targetMonth = ((month % 12) + 12) % 12
+  const targetYear = year + Math.floor(month / 12)
+  const day = Math.min(
+    date.getDate(),
+    new Date(targetYear, targetMonth + 1, 0).getDate(),
+  )
+  return isoDate(new Date(targetYear, targetMonth, day))
+}
+
+function snapshotLabel(date: string): string {
+  const [year, month, day] = date.split("-").map(Number)
+  return `${String(day).padStart(2, "0")} ${MONTHS[month - 1]} ${year}`
+}
+
 export function buildTimelineSteps(
   now: Date = new Date(),
   startYear: number = TIMELINE_START_YEAR,
 ): TimelineStep[] {
   const today = isoDate(now)
-  const steps: TimelineStep[] = []
-  let from = `${startYear - 1}-12-31`
+  const periodSteps: TimelineStep[] = []
 
   outer: for (let year = startYear; year <= now.getFullYear(); year++) {
     for (const half of [1, 2] as const) {
       const date = half === 1 ? `${year}-06-30` : `${year}-12-31`
       if (date >= today) break outer
-      steps.push({
+      periodSteps.push({
         id: `${year}-H${half}`,
         label: `H${half} ${year}`,
         shortLabel: `H${half} ’${String(year).slice(2)}`,
         range: half === 1 ? `Jan – Jun ${year}` : `Jul – Dec ${year}`,
         date,
-        from,
+        from: "",
         isNow: false,
       })
-      from = date
     }
   }
 
+  const firstDate = `${startYear}-01-01`
+  const rollingPresets = [
+    {
+      id: "relative-2y",
+      label: "2 years ago",
+      shortLabel: "2y ago",
+      months: 24,
+    },
+    {
+      id: "relative-6m",
+      label: "6 months ago",
+      shortLabel: "6m ago",
+      months: 6,
+    },
+  ]
+  for (const preset of rollingPresets) {
+    const date = monthsBefore(now, preset.months)
+    if (date < firstDate || date >= today) continue
+    const existing = periodSteps.find((step) => step.date === date)
+    if (existing) {
+      existing.presets = [...(existing.presets ?? []), preset.label]
+      continue
+    }
+    periodSteps.push({
+      id: preset.id,
+      label: preset.label,
+      shortLabel: preset.shortLabel,
+      range: `Snapshot · ${snapshotLabel(date)}`,
+      date,
+      from: "",
+      isNow: false,
+      presets: [preset.label],
+    })
+  }
+
+  periodSteps.sort((left, right) => left.date.localeCompare(right.date))
+  let from = `${startYear - 1}-12-31`
+  const steps = periodSteps.map((step) => {
+    const withFrom = { ...step, from }
+    from = step.date
+    return withFrom
+  })
   const fromMonth = Number(from.slice(5, 7))
   const sinceMonthIndex = fromMonth % 12
   const sinceYear = Number(from.slice(0, 4)) + (fromMonth === 12 ? 1 : 0)

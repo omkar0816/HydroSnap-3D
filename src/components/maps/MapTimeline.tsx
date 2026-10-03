@@ -72,6 +72,13 @@ export function MapTimeline({
     onIndexChange(Math.min(last, Math.max(0, next)))
   }
 
+  const quickSnapshots = ["6 months ago", "2 years ago"]
+    .map((label) => ({
+      label,
+      index: steps.findIndex((item) => item.presets?.includes(label)),
+    }))
+    .filter(({ index }) => index >= 0)
+
   if (!open) {
     return (
       <div className="hs-timeline hs-timeline-collapsed">
@@ -168,6 +175,21 @@ export function MapTimeline({
           </div>
         </div>
 
+        <div className="hs-timeline-presets" aria-label="Quick time snapshots">
+          {quickSnapshots.map(({ label, index: presetIndex }) => (
+            <button
+              type="button"
+              key={label}
+              disabled={!enabled}
+              aria-pressed={index === presetIndex}
+              className={index === presetIndex ? "active" : ""}
+              onClick={() => go(presetIndex)}
+            >
+              {label}
+            </button>
+          ))}
+        </div>
+
         <div className="hs-timeline-summary">
           <div className="hs-timeline-period">
             <strong>{step.label}</strong>
@@ -215,8 +237,9 @@ export function MapTimeline({
           </div>
         )}
         <div className="hs-timeline-note">
-          Install dates are demo data. Verification status shown is the current
-          status, not historical.
+          Asset visibility uses install dates (demo dates where unavailable).
+          Imagery, overlays, and verification status are current, not
+          historical.
         </div>
       </div>
     </div>
