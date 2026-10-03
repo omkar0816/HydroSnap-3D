@@ -35,7 +35,7 @@ Requirements: Node.js 22 and pnpm 10.34.3 (see `mise.toml`).
 ```sh
 pnpm install
 cp .env.example .env.local # optional; defaults to the demo API
-pnpm dev          # http://localhost:5173
+pnpm dev          # http://localhost:8443 (or the PORT environment variable)
 ```
 
 Checks:
