@@ -50,6 +50,8 @@ interface WatershedMapProps {
   ndviOverlay?: Feature<PolygonGeometry | MultiPolygonGeometry>
   ndwiOverlay?: Feature<PolygonGeometry | MultiPolygonGeometry>
   choropleth?: ChoroplethConfig
+  /** Assets added in the selected timeline period. */
+  highlightAssetIds?: string[]
   onSelectAsset: (asset: Asset) => void
   onSelectWatershed?: (id: string, properties: Record<string, unknown>) => void
   onMapClick?: (position: WGS84Position) => void
@@ -126,7 +128,11 @@ function baseStyle(initial: Basemap): maplibregl.StyleSpecification {
   }
 }
 
-function assetCollection(assets: Asset[]): FeatureCollection<PointGeometry> {
+function assetCollection(
+  assets: Asset[],
+  highlightAssetIds: string[],
+): FeatureCollection<PointGeometry> {
+  const highlightedIds = new Set(highlightAssetIds)
   return {
     type: "FeatureCollection",
     features: assets.map((asset) => ({
@@ -136,6 +142,7 @@ function assetCollection(assets: Asset[]): FeatureCollection<PointGeometry> {
         name: asset.name,
         type: asset.type,
         status: asset.status,
+        highlighted: highlightedIds.has(asset.id),
       },
       geometry: { type: "Point", coordinates: asset.location.coordinates },
     })),
@@ -200,6 +207,7 @@ export function WatershedMap({
   ndviOverlay,
   ndwiOverlay,
   choropleth,
+  highlightAssetIds = [],
   onSelectAsset,
   onSelectWatershed,
   onMapClick,
@@ -223,7 +231,10 @@ export function WatershedMap({
   const [mapLoaded, setMapLoaded] = useState(false)
   const [threeDimensional, setThreeDimensional] = useState(false)
   const navigate = useNavigate()
-  const assetData = useMemo(() => assetCollection(assets), [assets])
+  const assetData = useMemo(
+    () => assetCollection(assets, highlightAssetIds),
+    [assets, highlightAssetIds],
+  )
   const drawnWatersheds = useMemo(
     () => watersheds ?? (watershed ? [watershed] : []),
     [watershed, watersheds],
@@ -320,6 +331,19 @@ export function WatershedMap({
       map.addSource("field-assets", {
         type: "geojson",
         data: { type: "FeatureCollection", features: [] },
+      })
+      map.addLayer({
+        id: "asset-new-halo",
+        type: "circle",
+        source: "field-assets",
+        filter: ["==", ["get", "highlighted"], true],
+        paint: {
+          "circle-radius": 13,
+          "circle-color": "#f0a345",
+          "circle-opacity": 0.35,
+          "circle-stroke-color": "#d9822b",
+          "circle-stroke-width": 1,
+        },
       })
       map.addLayer({
         id: "asset-points",
@@ -622,6 +646,7 @@ export function WatershedMap({
       ["watershed-fill", visibleLayers.boundary],
       ["watershed-line", visibleLayers.boundary],
       ["streams-line", visibleLayers.streams],
+      ["asset-new-halo", visibleLayers.assets],
       ["asset-points", visibleLayers.assets],
       ["ndvi-overlay", visibleLayers.ndvi],
       ["ndwi-overlay", visibleLayers.ndwi],

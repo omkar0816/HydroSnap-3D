@@ -70,6 +70,8 @@ export interface Asset {
   location: GeoLocation
   status: "Verified" | "Pending review" | "Flagged"
   lastInspected: string
+  /** ISO date the structure was put in place; drives the map timeline. */
+  installedAt?: string
   village: string
   description: string
   imageUrl?: string

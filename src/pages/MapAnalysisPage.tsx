@@ -1,4 +1,4 @@
-import { useContext, useMemo, useState } from "react"
+import { useCallback, useContext, useMemo, useState } from "react"
 import {
   Activity,
   ChevronDown,
@@ -24,6 +24,7 @@ import {
   type ChoroplethConfig,
 } from "@/components/maps/WatershedMap"
 import { DemoBadge } from "@/components/common/DemoBadge"
+import { MapTimeline } from "@/components/maps/MapTimeline"
 import { WatershedPanel } from "@/components/maps/WatershedPanel"
 import { downloadAssetsCsv, downloadAssetsGeoJson } from "@/utils/exporters"
 import {
@@ -32,6 +33,7 @@ import {
   type Bounds,
 } from "@/utils/geo"
 import { watershedStats } from "@/utils/watershedStats"
+import { assetsAsOf, buildTimelineSteps, summarizeStep } from "@/utils/timeline"
 import type { Asset, Watershed } from "@/types/domain"
 import type { ThematicLayer } from "@/types/domain"
 import type {
@@ -78,9 +80,35 @@ export function MapAnalysisPage() {
   const watershed =
     watersheds.find(({ id }) => id === context?.watershedId) ?? watersheds[0]
   const allAssets = data.assets.data ?? EMPTY_ASSETS
+  const timelineSteps = useMemo(() => buildTimelineSteps(), [])
+  const [timelineEnabled, setTimelineEnabled] = useState(true)
+  const [timelineIndex, setTimelineIndex] = useState(timelineSteps.length - 1)
+  const [newOnly, setNewOnly] = useState(false)
+  const handleTimelineIndex = useCallback(
+    (index: number) => setTimelineIndex(index),
+    [],
+  )
+  const timelineStep = timelineSteps[timelineIndex] ?? timelineSteps.at(-1)
+  const timelineSummary = useMemo(
+    () => (timelineStep ? summarizeStep(allAssets, timelineStep) : undefined),
+    [allAssets, timelineStep],
+  )
+  const timelineAssets = useMemo(() => {
+    if (!timelineEnabled || !timelineStep || !timelineSummary) return allAssets
+    return newOnly
+      ? timelineSummary.added
+      : assetsAsOf(allAssets, timelineStep.date)
+  }, [allAssets, newOnly, timelineEnabled, timelineStep, timelineSummary])
+  const highlightAssetIds = useMemo(
+    () =>
+      timelineEnabled && timelineSummary
+        ? timelineSummary.added.map(({ id }) => id)
+        : [],
+    [timelineEnabled, timelineSummary],
+  )
   const assets = useMemo(
-    () => allAssets.filter((asset) => asset.watershedId === watershed?.id),
-    [allAssets, watershed?.id],
+    () => timelineAssets.filter((asset) => asset.watershedId === watershed?.id),
+    [timelineAssets, watershed?.id],
   )
   const thematicLayers = data.layers.data ?? EMPTY_THEMATIC_LAYERS
   const visibleLayers = context?.visibleLayers ?? defaultVisibleLayers
@@ -97,7 +125,11 @@ export function MapAnalysisPage() {
     [thematicLayers],
   )
   const [basemap, setBasemap] = useState<Basemap>("standard")
-  const [selectedAsset, setSelectedAsset] = useState<Asset>()
+  const [pickedAsset, setSelectedAsset] = useState<Asset>()
+  const selectedAsset =
+    pickedAsset && timelineAssets.some(({ id }) => id === pickedAsset.id)
+      ? pickedAsset
+      : undefined
   const [query, setQuery] = useState("")
   const [measure, setMeasure] = useState(false)
   const [focusPosition, setFocusPosition] = useState<[number, number]>()
@@ -119,7 +151,7 @@ export function MapAnalysisPage() {
     if (metric === "none") return undefined
     const values: Record<string, number> = {}
     for (const item of watersheds) {
-      const stats = watershedStats(item.id, allAssets)
+      const stats = watershedStats(item.id, timelineAssets)
       values[item.id] =
         metric === "verified"
           ? stats.verified
@@ -132,7 +164,7 @@ export function MapAnalysisPage() {
       max: Math.max(1, ...Object.values(values)),
       label: choroplethLabels[metric],
     }
-  }, [allAssets, metric, watersheds])
+  }, [metric, timelineAssets, watersheds])
 
   function openWatershed(id: string) {
     const target = watersheds.find((item) => item.id === id)
@@ -428,9 +460,14 @@ export function MapAnalysisPage() {
               </button>
             </div>
           </div>
-          <div className="map-map-holder">
+          <div
+            className={`map-map-holder ${
+              timelineEnabled ? "has-timeline" : ""
+            }`}
+          >
             <WatershedMap
-              assets={allAssets}
+              assets={timelineAssets}
+              highlightAssetIds={highlightAssetIds}
               watershed={watershed}
               watersheds={watersheds}
               choropleth={choropleth}
@@ -469,7 +506,7 @@ export function MapAnalysisPage() {
             {panelWatershed && !selectedAsset && (
               <WatershedPanel
                 watershed={panelWatershed}
-                assets={allAssets}
+                assets={timelineAssets}
                 onClose={() => setPanelWatershedId(undefined)}
                 onFocus={() => openWatershed(panelWatershed.id)}
               />
@@ -516,6 +553,22 @@ export function MapAnalysisPage() {
                   View asset details <ChevronDown size={14} />
                 </button>
               </div>
+            )}
+            {timelineSummary && (
+              <MapTimeline
+                steps={timelineSteps}
+                index={timelineIndex}
+                onIndexChange={handleTimelineIndex}
+                enabled={timelineEnabled}
+                onEnabledChange={setTimelineEnabled}
+                newOnly={newOnly}
+                onNewOnlyChange={setNewOnly}
+                summary={timelineSummary}
+                onFocusAsset={(asset) => {
+                  setSelectedAsset(asset)
+                  setFocusPosition(asset.location.coordinates)
+                }}
+              />
             )}
           </div>
           <div className="map-bottom-bar">
