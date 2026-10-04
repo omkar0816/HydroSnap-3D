@@ -27,6 +27,7 @@ import {
 } from "lucide-react"
 import { AppContext } from "@/App"
 import { useHydroSnap } from "@/hooks/useHydroSnap"
+import { DemoBadge } from "@/components/common/DemoBadge"
 import { TrustPanel } from "@/components/evidence/TrustPanel"
 import { downloadObservationAudit } from "@/utils/exporters"
 import type {
@@ -236,9 +237,7 @@ export function WorkspacePage({ section }: { section: Section }) {
           <button
             className="button button-primary"
             onClick={() =>
-              context?.notify(
-                "Watershed creation is ready for the future FastAPI integration.",
-              )
+              context?.notify("Not available in this prototype.")
             }
           >
             <Plus size={16} /> Add watershed
@@ -594,6 +593,7 @@ export function WorkspacePage({ section }: { section: Section }) {
                     <span className="kicker-dot purple-dot" /> JOB HISTORY
                   </div>
                   <h2>Analysis jobs</h2>
+                  <DemoBadge label="Demo jobs" />
                 </div>
                 <button
                   className="icon-button small-icon"
@@ -652,11 +652,8 @@ export function WorkspacePage({ section }: { section: Section }) {
             </div>
             <button
               className="button button-primary button-small"
-              onClick={() =>
-                context?.notify(
-                  "Intervention creation is ready for the future API integration.",
-                )
-              }
+              disabled
+              title="Planned"
             >
               <Plus size={15} /> Add intervention
             </button>
@@ -718,12 +715,9 @@ export function WorkspacePage({ section }: { section: Section }) {
                     <td>
                       <button
                         className="icon-button small-icon"
-                        aria-label={`Preview ${report.name}`}
-                        onClick={() =>
-                          context?.notify(
-                            `Report preview: ${report.name} · PDF generation is simulated.`,
-                          )
-                        }
+                        aria-label={`Download ${report.name} (planned)`}
+                        disabled
+                        title="Planned"
                       >
                         <Download size={15} />
                       </button>

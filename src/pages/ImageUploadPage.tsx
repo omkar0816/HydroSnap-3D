@@ -572,6 +572,7 @@ export function ImageUploadPage() {
                 ref={fileInput}
                 type="file"
                 accept="image/jpeg,image/png,image/gif,image/webp,image/avif,image/bmp"
+                capture="environment"
                 className="visually-hidden"
                 onChange={(event) => void selectFile(event.target.files?.[0])}
               />
@@ -644,7 +645,8 @@ export function ImageUploadPage() {
                   <h2>Location confirmation</h2>
                   <p>
                     Review the photo coordinates and explicitly confirm the
-                    position to use.
+                    position to use. Gallery photos may have no GPS metadata;
+                    use device GPS if coordinates are missing.
                   </p>
                 </div>
                 <span className="optional-label">REQUIRED</span>
@@ -985,8 +987,9 @@ export function ImageUploadPage() {
               </div>
               <strong>Field-ready capture</strong>
               <p>
-                Evidence is saved to this device first, then synced
-                automatically when online (demo API in mock mode).
+                The upload form works offline after the site has loaded online
+                once. Evidence is saved to this device first, then synced when
+                online; the map and map tiles do not work offline.
               </p>
               <span className="future-badge">OFFLINE QUEUE + AUTO-SYNC</span>
             </section>

@@ -241,9 +241,11 @@ export function MapTimeline({
           </div>
         )}
         <div className="hs-timeline-note">
-          Satellite mode shows date-matched NASA VIIRS true-color imagery
-          (approximately 500 m resolution; no API key required). Imagery is
-          available only for dates covered by the satellite archive.
+          The current satellite view uses high-resolution Esri imagery.
+          Selecting a historical date switches to NASA VIIRS true-color
+          imagery (approximately 500 m resolution), which has less detail and
+          may look pixelated when zoomed in. Historical imagery is available
+          only for dates covered by the archive.
         </div>
       </div>
     </div>

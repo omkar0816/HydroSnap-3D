@@ -241,10 +241,8 @@ export function MapAnalysisPage() {
   }
 
   const imageryDate =
-    timelineEnabled && timelineStep
-      ? timelineStep.isNow
-        ? recentSatelliteDate()
-        : timelineStep.date
+    timelineEnabled && timelineStep && !timelineStep.isNow
+      ? timelineStep.date
       : undefined
 
   return (
@@ -668,10 +666,4 @@ function polygonLayerGeometry(
     properties: geometry.properties,
     geometry: geometry.geometry,
   }
-}
-
-function recentSatelliteDate(): string {
-  const date = new Date()
-  date.setUTCDate(date.getUTCDate() - 3)
-  return date.toISOString().slice(0, 10)
 }

@@ -105,8 +105,11 @@ Expected routes are listed in `docs/ARCHITECTURE.md`. Uploads are sent as
 
 Basemaps: OpenStreetMap, OpenTopoMap, Esri World Imagery (public tile
 endpoints; follow their usage terms and keep attribution). Labels are HTML
-markers, so no glyph server is needed. The service worker caches the app shell
-only; map tiles are not cached offline.
+markers, so no glyph server is needed. The service worker caches the app shell only after the site has been loaded
+online once; map tiles are not cached offline. The upload form can save evidence
+offline to this device and sync it when connectivity returns, but the map and
+its tiles are unavailable offline. Load the site online before demonstrating
+offline mode.
 
 The frontend is organized around the service boundary: route components use
 `useHydroSnap`, which calls `hydrosnapService`; demo records live separately in

@@ -24,6 +24,7 @@ import {
   YAxis,
 } from "recharts"
 import { AppContext } from "@/App"
+import { DemoBadge } from "@/components/common/DemoBadge"
 import { useHydroSnap } from "@/hooks/useHydroSnap"
 import type {
   Asset,
@@ -66,8 +67,17 @@ export function DashboardPage() {
     current === undefined || previous === undefined || previous === 0
       ? undefined
       : ((current - previous) / previous) * 100
-  const ndviChange = percentChange(ndviValue, ndviResults.at(-2)?.value)
-  const ndwiChange = percentChange(ndwiValue, ndwiResults.at(-2)?.value)
+  const previousMonthLabel = (date?: string) =>
+    date
+      ? new Date(`${date}T00:00:00Z`).toLocaleDateString("en-US", {
+          month: "short",
+          timeZone: "UTC",
+        })
+      : undefined
+  const previousNdvi = ndviResults.at(-2)
+  const previousNdwi = ndwiResults.at(-2)
+  const ndviChange = percentChange(ndviValue, previousNdvi?.value)
+  const ndwiChange = percentChange(ndwiValue, previousNdwi?.value)
   const verified = assets.filter(({ status }) => status === "Verified").length
   const currentDate = new Date().toLocaleDateString("en-GB", {
     day: "2-digit",
@@ -149,7 +159,7 @@ export function DashboardPage() {
           trend={
             ndviChange === undefined
               ? "—"
-              : `${Math.abs(ndviChange).toFixed(1)}% vs Aug`
+              : `${Math.abs(ndviChange).toFixed(1)}% vs ${previousMonthLabel(previousNdvi?.date)}`
           }
           up={ndviChange === undefined ? undefined : ndviChange >= 0}
         />
@@ -163,7 +173,7 @@ export function DashboardPage() {
           trend={
             ndwiChange === undefined
               ? "—"
-              : `${Math.abs(ndwiChange).toFixed(1)}% vs Aug`
+              : `${Math.abs(ndwiChange).toFixed(1)}% vs ${previousMonthLabel(previousNdwi?.date)}`
           }
           up={ndwiChange === undefined ? undefined : ndwiChange >= 0}
         />
@@ -417,6 +427,7 @@ export function DashboardPage() {
                 <span className="kicker-dot purple-dot" /> ANALYSIS JOBS
               </div>
               <h2>Processing queue</h2>
+              <DemoBadge label="Demo jobs" />
             </div>
             <Link className="panel-link" to="/analytics">
               All jobs <ArrowRight size={14} />
