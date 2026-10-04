@@ -33,7 +33,12 @@ import {
   type Bounds,
 } from "@/utils/geo"
 import { watershedStats } from "@/utils/watershedStats"
-import { assetsAsOf, buildTimelineSteps, summarizeStep } from "@/utils/timeline"
+import {
+  assetsAsOf,
+  buildTimelineSteps,
+  summarizeStep,
+  type TimelineInterval,
+} from "@/utils/timeline"
 import type { Asset, Watershed } from "@/types/domain"
 import type { ThematicLayer } from "@/types/domain"
 import type {
@@ -80,7 +85,11 @@ export function MapAnalysisPage() {
   const watershed =
     watersheds.find(({ id }) => id === context?.watershedId) ?? watersheds[0]
   const allAssets = data.assets.data ?? EMPTY_ASSETS
-  const timelineSteps = useMemo(() => buildTimelineSteps(), [])
+  const [timelineInterval, setTimelineInterval] = useState<TimelineInterval>(6)
+  const timelineSteps = useMemo(
+    () => buildTimelineSteps(new Date(), 2023, timelineInterval),
+    [timelineInterval],
+  )
   const [timelineEnabled, setTimelineEnabled] = useState(true)
   const [timelineIndex, setTimelineIndex] = useState(timelineSteps.length - 1)
   const [newOnly, setNewOnly] = useState(false)
@@ -134,6 +143,7 @@ export function MapAnalysisPage() {
   const [measure, setMeasure] = useState(false)
   const [focusPosition, setFocusPosition] = useState<[number, number]>()
   const [layersOpen, setLayersOpen] = useState(true)
+  const [mapSidebarOpen, setMapSidebarOpen] = useState(false)
   const [focusBounds, setFocusBounds] = useState<Bounds>()
   const [panelWatershedId, setPanelWatershedId] = useState<string>()
   const [watershedQuery, setWatershedQuery] = useState("")
@@ -225,6 +235,18 @@ export function MapAnalysisPage() {
     )
   }
 
+  function changeTimelineInterval(interval: TimelineInterval) {
+    setTimelineInterval(interval)
+    setTimelineIndex(buildTimelineSteps(new Date(), 2023, interval).length - 1)
+  }
+
+  const imageryDate =
+    timelineEnabled && timelineStep
+      ? timelineStep.isNow
+        ? recentSatelliteDate()
+        : timelineStep.date
+      : undefined
+
   return (
     <div className="map-page">
       <div className="page-heading compact-heading">
@@ -254,7 +276,18 @@ export function MapAnalysisPage() {
         </div>
       </div>
       <div className="map-workspace">
-        <aside className="map-sidebar">
+        {mapSidebarOpen && (
+          <button
+            type="button"
+            className="mobile-map-backdrop"
+            aria-label="Close map contents"
+            onClick={() => setMapSidebarOpen(false)}
+          />
+        )}
+        <aside
+          id="map-contents-panel"
+          className={`map-sidebar ${mapSidebarOpen ? "mobile-map-open" : ""}`}
+        >
           <div className="map-sidebar-head">
             <div>
               <span className="section-kicker">
@@ -283,7 +316,13 @@ export function MapAnalysisPage() {
             {watershedMatches.length > 0 && (
               <div className="hs-search-results">
                 {watershedMatches.slice(0, 8).map((item) => (
-                  <button key={item.id} onClick={() => openWatershed(item.id)}>
+                  <button
+                    key={item.id}
+                    onClick={() => {
+                      openWatershed(item.id)
+                      setMapSidebarOpen(false)
+                    }}
+                  >
                     <strong>{item.name}</strong>
                     <small>
                       {item.code} · {item.district}
@@ -399,7 +438,10 @@ export function MapAnalysisPage() {
                 className={`map-feature ${
                   selectedAsset?.id === asset.id ? "selected" : ""
                 }`}
-                onClick={() => setSelectedAsset(asset)}
+                onClick={() => {
+                  setSelectedAsset(asset)
+                  setMapSidebarOpen(false)
+                }}
               >
                 <span
                   className={`asset-feature-icon feature-${asset.type.toLowerCase().replace(/ /g, "-")}`}
@@ -437,6 +479,16 @@ export function MapAnalysisPage() {
         <section className="map-main">
           <div className="map-toolbar">
             <div className="map-toolbar-left">
+              <button
+                type="button"
+                className="mobile-map-panel-toggle"
+                onClick={() => setMapSidebarOpen((open) => !open)}
+                aria-label="Open map contents"
+                aria-expanded={mapSidebarOpen}
+                aria-controls="map-contents-panel"
+              >
+                <Layers3 size={16} />
+              </button>
               <div className="map-breadcrumb">
                 <span>{watershed?.name ?? "Watershed"}</span>
                 <ChevronDown size={14} />
@@ -460,11 +512,7 @@ export function MapAnalysisPage() {
               </button>
             </div>
           </div>
-          <div
-            className={`map-map-holder ${
-              timelineEnabled ? "has-timeline" : ""
-            }`}
-          >
+          <div className="map-map-holder">
             <WatershedMap
               assets={timelineAssets}
               highlightAssetIds={highlightAssetIds}
@@ -480,6 +528,7 @@ export function MapAnalysisPage() {
               }}
               onCenterChange={setCenter}
               basemap={basemap}
+              imageryDate={imageryDate}
               visibleLayers={visibleLayers}
               measure={measure}
               selectedAssetId={selectedAsset?.id}
@@ -554,23 +603,25 @@ export function MapAnalysisPage() {
                 </button>
               </div>
             )}
-            {timelineSummary && (
-              <MapTimeline
-                steps={timelineSteps}
-                index={timelineIndex}
-                onIndexChange={handleTimelineIndex}
-                enabled={timelineEnabled}
-                onEnabledChange={setTimelineEnabled}
-                newOnly={newOnly}
-                onNewOnlyChange={setNewOnly}
-                summary={timelineSummary}
-                onFocusAsset={(asset) => {
-                  setSelectedAsset(asset)
-                  setFocusPosition(asset.location.coordinates)
-                }}
-              />
-            )}
           </div>
+          {timelineSummary && (
+            <MapTimeline
+              steps={timelineSteps}
+              index={timelineIndex}
+              onIndexChange={handleTimelineIndex}
+              enabled={timelineEnabled}
+              onEnabledChange={setTimelineEnabled}
+              interval={timelineInterval}
+              onIntervalChange={changeTimelineInterval}
+              newOnly={newOnly}
+              onNewOnlyChange={setNewOnly}
+              summary={timelineSummary}
+              onFocusAsset={(asset) => {
+                setSelectedAsset(asset)
+                setFocusPosition(asset.location.coordinates)
+              }}
+            />
+          )}
           <div className="map-bottom-bar">
             <div>
               <span className="bottom-dot" /> {watershed?.code ?? "—"} <i>·</i>{" "}
@@ -617,4 +668,10 @@ function polygonLayerGeometry(
     properties: geometry.properties,
     geometry: geometry.geometry,
   }
+}
+
+function recentSatelliteDate(): string {
+  const date = new Date()
+  date.setUTCDate(date.getUTCDate() - 3)
+  return date.toISOString().slice(0, 10)
 }

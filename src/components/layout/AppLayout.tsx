@@ -269,7 +269,7 @@ export function AppLayout({
           <div className="topbar-left">
             <button
               className="icon-button mobile-menu-button"
-              aria-label="Open navigation"
+              aria-label="Open dashboard navigation"
               aria-expanded={mobileOpen}
               aria-controls="primary-navigation"
               onClick={() => setMobileOpen(true)}

@@ -11,29 +11,21 @@ import {
 const now = new Date(2026, 9, 4)
 
 describe("timeline steps", () => {
-  it("builds half-year steps from 2023 through today", () => {
+  it("builds regular half-year steps from 2023 through today", () => {
     const steps = buildTimelineSteps(now)
     expect(steps.map((step) => step.label)).toEqual([
       "H1 2023",
       "H2 2023",
       "H1 2024",
-      "2 years ago",
       "H2 2024",
       "H1 2025",
       "H2 2025",
-      "6 months ago",
       "H1 2026",
       "Now",
     ])
     expect(steps.at(-1)?.date).toBe("2026-10-04")
     expect(steps.at(-1)?.isNow).toBe(true)
     expect(steps.at(-1)?.range).toBe("Jul 2026 – today")
-    expect(steps.find((step) => step.id === "relative-6m")?.date).toBe(
-      "2026-04-04",
-    )
-    expect(steps.find((step) => step.id === "relative-2y")?.date).toBe(
-      "2024-10-04",
-    )
   })
 
   it("chains each step after the previous snapshot date", () => {
@@ -41,6 +33,24 @@ describe("timeline steps", () => {
     for (let index = 1; index < steps.length; index++) {
       expect(steps[index].from).toBe(steps[index - 1].date)
     }
+  })
+
+  it("builds annual snapshots when the interval is set to one year", () => {
+    const steps = buildTimelineSteps(now, undefined, 12)
+    expect(steps.map((step) => step.label)).toEqual([
+      "2023",
+      "2024",
+      "2025",
+      "Now",
+    ])
+    expect(steps.map((step) => step.date)).toEqual([
+      "2023-12-31",
+      "2024-12-31",
+      "2025-12-31",
+      "2026-10-04",
+    ])
+    expect(steps[0].range).toBe("Jan – Dec 2023")
+    expect(steps.at(-1)?.range).toBe("Jan 2026 – today")
   })
 })
 
@@ -52,9 +62,9 @@ describe("asset filtering", () => {
     expect(assetsAsOf(assets, "2026-10-04")).toHaveLength(assets.length)
   })
 
-  it("shows the correct asset snapshots six months and two years ago", () => {
-    expect(assetsAsOf(assets, "2026-04-04")).toHaveLength(8)
-    expect(assetsAsOf(assets, "2024-10-04")).toHaveLength(4)
+  it("shows the correct six-month and annual asset snapshots", () => {
+    expect(assetsAsOf(assets, "2026-06-30")).toHaveLength(8)
+    expect(assetsAsOf(assets, "2025-12-31")).toHaveLength(7)
   })
 
   it("lists assets added during the selected period", () => {

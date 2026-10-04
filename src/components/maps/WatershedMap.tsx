@@ -1,5 +1,8 @@
 import { useEffect, useMemo, useRef, useState } from "react"
-import maplibregl, { type Map as MapLibreMap } from "maplibre-gl"
+import maplibregl, {
+  type Map as MapLibreMap,
+  type RasterTileSource,
+} from "maplibre-gl"
 import { Protocol } from "pmtiles"
 import { useNavigate } from "react-router-dom"
 import { env } from "@/config/env"
@@ -52,6 +55,8 @@ interface WatershedMapProps {
   choropleth?: ChoroplethConfig
   /** Assets added in the selected timeline period. */
   highlightAssetIds?: string[]
+  /** Date for historical satellite imagery; omitted to use current imagery. */
+  imageryDate?: string
   onSelectAsset: (asset: Asset) => void
   onSelectWatershed?: (id: string, properties: Record<string, unknown>) => void
   onMapClick?: (position: WGS84Position) => void
@@ -92,7 +97,14 @@ export function mapFeatureId(feature: {
  * All three basemaps live in one style as raster layers; switching basemap
  * only toggles visibility, so the camera and overlays are preserved.
  */
-function baseStyle(initial: Basemap): maplibregl.StyleSpecification {
+function historicalImageryTiles(date: string): string {
+  return `https://gibs.earthdata.nasa.gov/wmts/epsg3857/best/VIIRS_SNPP_CorrectedReflectance_TrueColor/default/${date}/GoogleMapsCompatible_Level9/{z}/{y}/{x}.jpg`
+}
+
+function baseStyle(
+  initial: Basemap,
+  imageryDate: string,
+): maplibregl.StyleSpecification {
   const raster = (tiles: string, attribution: string, maxzoom: number) => ({
     type: "raster" as const,
     tiles: [tiles],
@@ -113,18 +125,33 @@ function baseStyle(initial: Basemap): maplibregl.StyleSpecification {
         "Tiles © Esri",
         19,
       ),
+      "src-satellite-history": raster(
+        historicalImageryTiles(imageryDate),
+        "NASA GIBS / VIIRS SNPP Corrected Reflectance (True Color)",
+        9,
+      ),
       "src-terrain": raster(
         "https://tile.opentopomap.org/{z}/{x}/{y}.png",
         "© OpenStreetMap contributors, SRTM | OpenTopoMap (CC-BY-SA)",
         17,
       ),
     },
-    layers: (Object.keys(basemapLayers) as Basemap[]).map((key) => ({
-      id: basemapLayers[key],
-      type: "raster" as const,
-      source: `src-${key}`,
-      layout: { visibility: key === initial ? "visible" : "none" },
-    })),
+    layers: [
+      ...(Object.keys(basemapLayers) as Basemap[]).map((key) => ({
+        id: basemapLayers[key],
+        type: "raster" as const,
+        source: `src-${key}`,
+        layout: {
+          visibility: key === initial ? ("visible" as const) : ("none" as const),
+        },
+      })),
+      {
+        id: "basemap-satellite-history",
+        type: "raster" as const,
+        source: "src-satellite-history",
+        layout: { visibility: "none" as const },
+      },
+    ],
   }
 }
 
@@ -208,6 +235,7 @@ export function WatershedMap({
   ndwiOverlay,
   choropleth,
   highlightAssetIds = [],
+  imageryDate,
   onSelectAsset,
   onSelectWatershed,
   onMapClick,
@@ -227,6 +255,9 @@ export function WatershedMap({
   const measureRef = useRef(measure)
   const assetsRef = useRef(assets)
   const initialBasemap = useRef(basemap)
+  const initialImageryDate = useRef(
+    imageryDate ?? new Date().toISOString().slice(0, 10),
+  )
   const [measurePoints, setMeasurePoints] = useState<WGS84Position[]>([])
   const [mapLoaded, setMapLoaded] = useState(false)
   const [threeDimensional, setThreeDimensional] = useState(false)
@@ -271,7 +302,7 @@ export function WatershedMap({
     if (env.watershedPmtilesUrl) ensurePmtilesProtocol()
     const map = new maplibregl.Map({
       container,
-      style: baseStyle(initialBasemap.current),
+      style: baseStyle(initialBasemap.current, initialImageryDate.current),
       center: initialCenter.current,
       zoom: 12.4,
     })
@@ -502,18 +533,32 @@ export function WatershedMap({
     }
   }, [])
 
-  // Basemap switch: toggle raster layer visibility only.
+  // Historical imagery is date-aware; static satellite imagery remains available
+  // when the time filter is disabled.
   useEffect(() => {
     const map = mapRef.current
     if (!map || !mapLoaded) return
+    const date = imageryDate ?? initialImageryDate.current
+    const historicalSource = map.getSource("src-satellite-history")
+    if (historicalSource?.type === "raster") {
+      const rasterSource = historicalSource as RasterTileSource
+      rasterSource.setTiles([historicalImageryTiles(date)])
+    }
     ;(Object.keys(basemapLayers) as Basemap[]).forEach((key) => {
       map.setLayoutProperty(
         basemapLayers[key],
         "visibility",
-        key === basemap ? "visible" : "none",
+        key === basemap && (key !== "satellite" || !imageryDate)
+          ? "visible"
+          : "none",
       )
     })
-  }, [basemap, mapLoaded])
+    map.setLayoutProperty(
+      "basemap-satellite-history",
+      "visibility",
+      basemap === "satellite" && imageryDate ? "visible" : "none",
+    )
+  }, [basemap, imageryDate, mapLoaded])
 
   // Watershed polygons + choropleth colours.
   useEffect(() => {

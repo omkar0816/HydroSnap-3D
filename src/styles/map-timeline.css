@@ -1,21 +1,18 @@
 .hs-timeline {
-  position: absolute;
-  left: 50%;
-  bottom: 10px;
-  transform: translateX(-50%);
-  z-index: 5;
-  width: min(780px, calc(100% - 24px));
+  width: 100%;
+  align-self: stretch;
   background: #fff;
   border: 1px solid #e4eaf0;
-  border-radius: 12px;
-  padding: 10px 12px;
-  box-shadow: 0 10px 30px rgba(18, 59, 99, 0.16);
+  border-radius: 0;
+  padding: 12px 16px;
+  box-shadow: 0 2px 8px rgba(18, 59, 99, 0.06);
   font-size: 12px;
   color: #173653;
 }
 .hs-timeline-collapsed {
+  align-self: flex-start;
   width: auto;
-  padding: 0;
+  padding: 0 4px;
   border-radius: 999px;
 }
 .hs-timeline-collapsed button {
@@ -96,12 +93,19 @@
   align-items: center;
   gap: 8px;
 }
-.hs-timeline-presets {
+.hs-timeline-intervals {
   display: flex;
+  align-items: center;
   gap: 6px;
-  margin-top: 7px;
+  margin: 0 0 8px;
 }
-.hs-timeline-presets button {
+.hs-timeline-intervals span {
+  margin-right: 3px;
+  color: #6b7c8f;
+  font-size: 10px;
+  font-weight: 600;
+}
+.hs-timeline-intervals button {
   padding: 4px 9px;
   border: 1px solid #dce8ed;
   border-radius: 999px;
@@ -111,7 +115,7 @@
   font-weight: 600;
   cursor: pointer;
 }
-.hs-timeline-presets button.active {
+.hs-timeline-intervals button.active {
   border-color: #8ab9a0;
   background: #eaf5ee;
   color: #155a41;
@@ -127,11 +131,12 @@
 }
 .hs-timeline-ticks {
   display: flex;
-  justify-content: space-between;
-  gap: 2px;
+  overflow-x: auto;
+  justify-content: flex-start;
+  gap: 0;
 }
 .hs-timeline-ticks button {
-  flex: 1;
+  flex: 0 0 38px;
   padding: 2px 0;
   border: 0;
   background: transparent;
@@ -199,16 +204,9 @@
   font-size: 10px;
   color: #8896a6;
 }
-.map-map-holder.has-timeline .hs-legend,
-.map-map-holder.has-timeline .hs-watershed-panel,
-.map-map-holder.has-timeline .asset-map-card {
-  bottom: 190px;
-}
-
 @media (max-width: 640px) {
   .hs-timeline {
-    width: calc(100% - 16px);
-    padding: 8px;
+    padding: 11px 10px;
   }
   .hs-timeline-head {
     gap: 6px;
@@ -228,5 +226,15 @@
   }
   .hs-timeline-ticks button {
     font-size: 9px;
+  }
+  .hs-timeline-controls {
+    gap: 5px;
+  }
+  .hs-timeline-summary {
+    align-items: flex-start;
+  }
+  .hs-timeline-summary .compact {
+    flex-basis: 100%;
+    margin-left: 0;
   }
 }

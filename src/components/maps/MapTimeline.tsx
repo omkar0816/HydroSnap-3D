@@ -9,7 +9,11 @@ import {
   SkipForward,
 } from "lucide-react"
 import type { Asset } from "@/types/domain"
-import type { TimelineStep, TimelineSummary } from "@/utils/timeline"
+import type {
+  TimelineInterval,
+  TimelineStep,
+  TimelineSummary,
+} from "@/utils/timeline"
 import "@/styles/map-timeline.css"
 
 interface MapTimelineProps {
@@ -18,6 +22,8 @@ interface MapTimelineProps {
   onIndexChange: (index: number) => void
   enabled: boolean
   onEnabledChange: (enabled: boolean) => void
+  interval: TimelineInterval
+  onIntervalChange: (interval: TimelineInterval) => void
   newOnly: boolean
   onNewOnlyChange: (value: boolean) => void
   summary: TimelineSummary
@@ -32,6 +38,8 @@ export function MapTimeline({
   onIndexChange,
   enabled,
   onEnabledChange,
+  interval,
+  onIntervalChange,
   newOnly,
   onNewOnlyChange,
   summary,
@@ -72,13 +80,6 @@ export function MapTimeline({
     onIndexChange(Math.min(last, Math.max(0, next)))
   }
 
-  const quickSnapshots = ["6 months ago", "2 years ago"]
-    .map((label) => ({
-      label,
-      index: steps.findIndex((item) => item.presets?.includes(label)),
-    }))
-    .filter(({ index }) => index >= 0)
-
   if (!open) {
     return (
       <div className="hs-timeline hs-timeline-collapsed">
@@ -97,8 +98,7 @@ export function MapTimeline({
     <div className="hs-timeline" role="group" aria-label="Map timeline">
       <div className="hs-timeline-head">
         <span className="hs-timeline-title">
-          <History size={15} /> Interventions timeline
-          <small>every 6 months</small>
+          <History size={15} /> Historical map timeline
         </span>
         <label className="hs-timeline-switch">
           <input
@@ -119,6 +119,25 @@ export function MapTimeline({
       </div>
 
       <div className={`hs-timeline-body ${enabled ? "" : "is-off"}`}>
+        <div className="hs-timeline-intervals" aria-label="Timeline interval">
+          <span>Interval</span>
+          <button
+            type="button"
+            aria-pressed={interval === 6}
+            className={interval === 6 ? "active" : ""}
+            onClick={() => onIntervalChange(6)}
+          >
+            6 months
+          </button>
+          <button
+            type="button"
+            aria-pressed={interval === 12}
+            className={interval === 12 ? "active" : ""}
+            onClick={() => onIntervalChange(12)}
+          >
+            1 year
+          </button>
+        </div>
         <div className="hs-timeline-controls">
           <button
             type="button"
@@ -175,21 +194,6 @@ export function MapTimeline({
           </div>
         </div>
 
-        <div className="hs-timeline-presets" aria-label="Quick time snapshots">
-          {quickSnapshots.map(({ label, index: presetIndex }) => (
-            <button
-              type="button"
-              key={label}
-              disabled={!enabled}
-              aria-pressed={index === presetIndex}
-              className={index === presetIndex ? "active" : ""}
-              onClick={() => go(presetIndex)}
-            >
-              {label}
-            </button>
-          ))}
-        </div>
-
         <div className="hs-timeline-summary">
           <div className="hs-timeline-period">
             <strong>{step.label}</strong>
@@ -237,9 +241,9 @@ export function MapTimeline({
           </div>
         )}
         <div className="hs-timeline-note">
-          Asset visibility uses install dates (demo dates where unavailable).
-          Imagery, overlays, and verification status are current, not
-          historical.
+          Satellite mode shows date-matched NASA VIIRS true-color imagery
+          (approximately 500 m resolution; no API key required). Imagery is
+          available only for dates covered by the satellite archive.
         </div>
       </div>
     </div>
