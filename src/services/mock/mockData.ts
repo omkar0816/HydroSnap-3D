@@ -63,6 +63,22 @@ const indrayaniBoundary = demoBoundary("Indrayani East (demo)", [
   [73.712, 18.688],
 ])
 
+const puneWaterwaysBoundary = demoBoundary("Pune Waterways (demo)", [
+  [73.43, 18.35],
+  [73.56, 18.32],
+  [73.69, 18.34],
+  [73.82, 18.39],
+  [73.94, 18.48],
+  [73.97, 18.61],
+  [73.94, 18.73],
+  [73.84, 18.79],
+  [73.7, 18.8],
+  [73.57, 18.76],
+  [73.46, 18.7],
+  [73.42, 18.56],
+  [73.43, 18.35],
+])
+
 export const currentUser: User = {
   id: "usr-001",
   name: "Ananya Deshmukh",
@@ -144,6 +160,20 @@ export const watersheds: Watershed[] = [
     source: "demo",
     demo: true,
   },
+  {
+    id: "ws-pune-waterways",
+    name: "Pune Waterways (Demo)",
+    code: "MH-PUN-DEMO",
+    district: "Pune",
+    state: "Maharashtra",
+    areaSqKm: 1100,
+    villages: 28,
+    status: "Active",
+    boundary: puneWaterwaysBoundary,
+    level: "watershed",
+    source: "demo",
+    demo: true,
+  },
 ]
 
 const locations: WGS84Position[] = [
@@ -156,6 +186,150 @@ const locations: WGS84Position[] = [
 ]
 
 export const assets: Asset[] = [
+  {
+    id: "ast-010",
+    name: "Temghar Creek Check Dam (demo)",
+    type: "Check dam",
+    watershedId: "ws-pune-waterways",
+    location: {
+      type: "Point",
+      coordinates: [73.509, 18.444],
+      source: "demo",
+    },
+    status: "Verified",
+    lastInspected: "2026-09-29",
+    village: "Temghar",
+    description:
+      "Illustrative demo point near Temghar Dam; not a field-verified asset.",
+  },
+  {
+    id: "ast-011",
+    name: "Mulshi Watershed Plantation (demo)",
+    type: "Plantation",
+    watershedId: "ws-pune-waterways",
+    location: {
+      type: "Point",
+      coordinates: [73.506, 18.532],
+      source: "demo",
+    },
+    status: "Pending review",
+    lastInspected: "2026-09-27",
+    village: "Mulshi",
+    description:
+      "Illustrative demo point near Mulshi Dam and the Mula River; not field-verified.",
+  },
+  {
+    id: "ast-012",
+    name: "Panshet Reservoir Check Dam (demo)",
+    type: "Check dam",
+    watershedId: "ws-pune-waterways",
+    location: {
+      type: "Point",
+      coordinates: [73.609, 18.405],
+      source: "demo",
+    },
+    status: "Verified",
+    lastInspected: "2026-09-24",
+    village: "Panshet",
+    description:
+      "Illustrative demo point near Panshet Reservoir; not a field-verified asset.",
+  },
+  {
+    id: "ast-013",
+    name: "Varasgaon Farm Pond (demo)",
+    type: "Farm pond",
+    watershedId: "ws-pune-waterways",
+    location: {
+      type: "Point",
+      coordinates: [73.657, 18.382],
+      source: "demo",
+    },
+    status: "Pending review",
+    lastInspected: "2026-09-22",
+    village: "Varasgaon",
+    description:
+      "Illustrative demo point near Varasgaon Dam; not a field-verified asset.",
+  },
+  {
+    id: "ast-014",
+    name: "Khadakwasla Stream Check Dam (demo)",
+    type: "Check dam",
+    watershedId: "ws-pune-waterways",
+    location: {
+      type: "Point",
+      coordinates: [73.762, 18.438],
+      source: "demo",
+    },
+    status: "Verified",
+    lastInspected: "2026-09-20",
+    village: "Khadakwasla",
+    description:
+      "Illustrative demo point near Khadakwasla Dam and the Mutha River; not field-verified.",
+  },
+  {
+    id: "ast-015",
+    name: "Warje Riverbank Plantation (demo)",
+    type: "Plantation",
+    watershedId: "ws-pune-waterways",
+    location: {
+      type: "Point",
+      coordinates: [73.787, 18.483],
+      source: "demo",
+    },
+    status: "Pending review",
+    lastInspected: "2026-09-18",
+    village: "Warje",
+    description:
+      "Illustrative demo point along the Mutha River near Warje; not field-verified.",
+  },
+  {
+    id: "ast-016",
+    name: "Mula-Mutha Percolation Tank (demo)",
+    type: "Percolation tank",
+    watershedId: "ws-pune-waterways",
+    location: {
+      type: "Point",
+      coordinates: [73.855, 18.523],
+      source: "demo",
+    },
+    status: "Verified",
+    lastInspected: "2026-09-16",
+    village: "Pune",
+    description:
+      "Illustrative demo point near the Mula-Mutha rivers; not a field-verified asset.",
+  },
+  {
+    id: "ast-017",
+    name: "Pavana River Check Dam (demo)",
+    type: "Check dam",
+    watershedId: "ws-pune-waterways",
+    location: {
+      type: "Point",
+      coordinates: [73.489, 18.677],
+      source: "demo",
+    },
+    status: "Pending review",
+    lastInspected: "2026-09-14",
+    village: "Pavana",
+    description:
+      "Illustrative demo point near Pavana Dam and the Pavana River; not field-verified.",
+  },
+  {
+    id: "ast-018",
+    name: "Alandi Riverbank Farm Pond (demo)",
+    type: "Farm pond",
+    watershedId: "ws-pune-waterways",
+    location: {
+      type: "Point",
+      coordinates: [73.896, 18.677],
+      source: "demo",
+    },
+    status: "Verified",
+    lastInspected: "2026-09-11",
+    village: "Alandi",
+    description:
+      "Illustrative demo point near the Indrayani River; not a field-verified asset.",
+  },
   {
     id: "ast-001",
     name: "Khadakwasla Check Dam",

@@ -14,8 +14,10 @@ import {
   Layers3,
   Leaf,
   LifeBuoy,
+  Mail,
   Map,
   Menu,
+  Phone,
   Search,
   Settings,
   ShieldCheck,
@@ -113,6 +115,7 @@ export function AppLayout({
   const [notificationsOpen, setNotificationsOpen] = useState(false)
   const [notificationsRead, setNotificationsRead] = useState(false)
   const [profileOpen, setProfileOpen] = useState(false)
+  const [helpOpen, setHelpOpen] = useState(false)
   const [search, setSearch] = useState("")
   const searchInput = useRef<HTMLInputElement>(null)
   const location = useLocation()
@@ -125,7 +128,10 @@ export function AppLayout({
 
   useEffect(() => {
     if (!context?.watershedId && watersheds[0]) {
-      context?.setWatershedId(watersheds[0].id)
+      context?.setWatershedId(
+        watersheds.find(({ id }) => id === "ws-pune-waterways")?.id ??
+          watersheds[0].id,
+      )
     }
   }, [context, watersheds])
 
@@ -145,6 +151,15 @@ export function AppLayout({
     window.addEventListener("keydown", focusSearch)
     return () => window.removeEventListener("keydown", focusSearch)
   }, [])
+
+  useEffect(() => {
+    if (!helpOpen) return
+    function closeHelp(event: KeyboardEvent) {
+      if (event.key === "Escape") setHelpOpen(false)
+    }
+    window.addEventListener("keydown", closeHelp)
+    return () => window.removeEventListener("keydown", closeHelp)
+  }, [helpOpen])
 
   function submitSearch(event: React.FormEvent<HTMLFormElement>) {
     event.preventDefault()
@@ -238,16 +253,21 @@ export function AppLayout({
           </section>
         </div>
         <div className="sidebar-footer">
-          <div className="sidebar-help">
+          <button
+            className="sidebar-help"
+            aria-haspopup="dialog"
+            aria-expanded={helpOpen}
+            onClick={() => setHelpOpen((value) => !value)}
+          >
             <span className="help-icon">
               <LifeBuoy size={17} />
             </span>
             <span>
               <strong>Need a hand?</strong>
-              <small>View field guide</small>
+              <small>Contact demo support</small>
             </span>
             <ChevronRight size={15} />
-          </div>
+          </button>
           <button
             className="collapse-button"
             aria-label={collapsed ? "Expand sidebar" : "Collapse sidebar"}
@@ -408,6 +428,55 @@ export function AppLayout({
           {children}
         </main>
       </div>
+      {helpOpen && (
+        <div
+          className="help-dialog-backdrop"
+          onClick={(event) => {
+            if (event.target === event.currentTarget) setHelpOpen(false)
+          }}
+        >
+          <section
+            className="help-dialog"
+            role="dialog"
+            aria-modal="true"
+            aria-labelledby="help-dialog-title"
+          >
+            <div className="help-dialog-heading">
+              <span className="help-icon">
+                <LifeBuoy size={18} />
+              </span>
+              <div>
+                <h2 id="help-dialog-title">Need a hand?</h2>
+                <p>Contact Omkar for a demo walkthrough or help.</p>
+              </div>
+              <button
+                className="icon-button"
+                aria-label="Close help"
+                onClick={() => setHelpOpen(false)}
+              >
+                <X size={17} />
+              </button>
+            </div>
+            <a className="help-contact-link" href="tel:7666093584">
+              <Phone size={17} />
+              <span>
+                <small>Phone</small>
+                <strong>7666093584</strong>
+              </span>
+            </a>
+            <a
+              className="help-contact-link"
+              href="mailto:omkarrajumankar@gmail.com"
+            >
+              <Mail size={17} />
+              <span>
+                <small>Email</small>
+                <strong>omkarrajumankar@gmail.com</strong>
+              </span>
+            </a>
+          </section>
+        </div>
+      )}
       {notification && (
         <div className="toast" role="status">
           <span className="toast-check">✓</span>
