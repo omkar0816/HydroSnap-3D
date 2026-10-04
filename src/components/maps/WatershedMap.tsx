@@ -6,6 +6,7 @@ import maplibregl, {
 import { Protocol } from "pmtiles"
 import { useNavigate } from "react-router-dom"
 import { env } from "@/config/env"
+import { boundsToCorners } from "@/utils/mapImage"
 import {
   boundsCenter,
   distanceMeters,
@@ -1009,12 +1010,10 @@ function addImageLayer(
   north: number,
 ) {
   removeImageLayer(map, sourceId, layerId)
-  const coordinates: [number, number][] = [
-    [west, north],
-    [east, north],
-    [east, south],
+  const coordinates = boundsToCorners([
     [west, south],
-  ]
+    [east, north],
+  ])
   map.addSource(sourceId, { type: "image", url, coordinates })
   map.addLayer(
     {
