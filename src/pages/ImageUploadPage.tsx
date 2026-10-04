@@ -7,10 +7,12 @@ import {
   AlertCircle,
   ArrowLeft,
   ArrowRight,
+  Camera,
   Check,
   CheckCircle2,
   Crosshair,
   FileImage,
+  Images,
   LoaderCircle,
   MapPin,
   Navigation,
@@ -24,6 +26,7 @@ import { AppContext } from "@/App"
 import { WatershedMap } from "@/components/maps/WatershedMap"
 import { useHydroSnap } from "@/hooks/useHydroSnap"
 import { TrustPanel } from "@/components/evidence/TrustPanel"
+import { findAssetCandidates } from "@/utils/assetMatch"
 import {
   distanceMeters,
   findContainingWatershed,
@@ -63,7 +66,8 @@ export function ImageUploadPage() {
   const data = useHydroSnap()
   const { watersheds, saveObservation } = data
   const currentUser = data.currentUser.data
-  const fileInput = useRef<HTMLInputElement>(null)
+  const cameraInput = useRef<HTMLInputElement>(null)
+  const galleryInput = useRef<HTMLInputElement>(null)
   const fileSelectionId = useRef(0)
   const [file, setFile] = useState<File>()
   const [preview, setPreview] = useState("")
@@ -78,6 +82,7 @@ export function ImageUploadPage() {
   const [error, setError] = useState("")
   const [showLocationPicker, setShowLocationPicker] = useState(false)
   const [saved, setSaved] = useState(false)
+  const [assetChoice, setAssetChoice] = useState<string>()
   const [exifSummary, setExifSummary] = useState<ExifSummary>()
   const [imageHash, setImageHash] = useState<string>()
   const [watershedNote, setWatershedNote] = useState("")
@@ -101,6 +106,29 @@ export function ImageUploadPage() {
     },
   })
   const watchedValues = form.watch()
+  const assetCandidates = useMemo(
+    () =>
+      confirmedLocation
+        ? findAssetCandidates(
+            confirmedLocation.coordinates,
+            watchedValues.assetType,
+            assets.data ?? [],
+          )
+        : undefined,
+    [assets.data, confirmedLocation, watchedValues.assetType],
+  )
+  const assetMatchAmbiguous =
+    (assetCandidates?.sameType.length ?? 0) > 1
+  const assetTypeConflict =
+    (assetCandidates?.sameType.length ?? 0) === 0 &&
+    (assetCandidates?.otherType.length ?? 0) > 0
+  useEffect(() => {
+    setAssetChoice(undefined)
+  }, [
+    confirmedLocation?.coordinates[0],
+    confirmedLocation?.coordinates[1],
+    watchedValues.assetType,
+  ])
   const chosenWatershed = (watersheds.data ?? []).find(
     (item) => item.id === watchedValues.watershedId,
   )
@@ -136,6 +164,8 @@ export function ImageUploadPage() {
       containingWatershed,
       declaredWatershedId: watchedValues.watershedId,
       snapDistanceMeters: streamSnap?.distanceMeters,
+      assetMatchAmbiguous,
+      assetTypeConflict,
       manualShiftMeters:
         exifLocation && confirmedLocation.source !== "exif"
           ? distanceMeters(
@@ -148,6 +178,8 @@ export function ImageUploadPage() {
     confirmedLocation,
     containingWatershed,
     data.observations.data,
+    assetMatchAmbiguous,
+    assetTypeConflict,
     exifLocation,
     exifSummary,
     imageHash,
@@ -189,7 +221,8 @@ export function ImageUploadPage() {
 
   function clearImageSelection() {
     fileSelectionId.current++
-    if (fileInput.current) fileInput.current.value = ""
+    if (cameraInput.current) cameraInput.current.value = ""
+    if (galleryInput.current) galleryInput.current.value = ""
     setFile(undefined)
     setPreview("")
     setExifLocation(undefined)
@@ -201,6 +234,7 @@ export function ImageUploadPage() {
     setExtracting(false)
     setError("")
     setSaved(false)
+    setAssetChoice(undefined)
     setExifSummary(undefined)
     setImageHash(undefined)
     setWatershedNote("")
@@ -411,6 +445,20 @@ export function ImageUploadPage() {
       setError("Wait for image metadata extraction to finish.")
       return
     }
+    if (!assetChoice) {
+      setError("Choose an existing nearby asset or create a new asset.")
+      return
+    }
+    const linkedAsset =
+      assetChoice === "new"
+        ? undefined
+        : assetCandidates?.sameType
+            .concat(assetCandidates.otherType)
+            .find(({ asset }) => asset.id === assetChoice)
+    if (assetChoice !== "new" && !linkedAsset) {
+      setError("The selected asset is no longer available. Review the matches.")
+      return
+    }
     setSaving(true)
     try {
       const imageDataUrl = await readFileAsDataUrl(file)
@@ -438,12 +486,20 @@ export function ImageUploadPage() {
         timestamp: now,
       })
       auditHistory.push({
+        action: linkedAsset
+          ? `Linked to ${linkedAsset.asset.id} (${Math.round(linkedAsset.distanceM)} m)`
+          : "Created as a new asset after officer confirmation",
+        actor: currentUser.name,
+        timestamp: now,
+      })
+      auditHistory.push({
         action: "Submitted for verification",
         actor: currentUser.name,
         timestamp: now,
       })
       const observation: FieldObservation = {
         id,
+        assetId: linkedAsset?.asset.id,
         idempotencyKey: id,
         imageSha256: imageHash,
         exif: exifSummary,
@@ -569,10 +625,17 @@ export function ImageUploadPage() {
                 <span className="optional-label">REQUIRED</span>
               </div>
               <input
-                ref={fileInput}
+                ref={cameraInput}
+                type="file"
+                accept="image/jpeg,image/png,image/webp,image/avif,image/bmp"
+                capture="environment"
+                className="visually-hidden"
+                onChange={(event) => void selectFile(event.target.files?.[0])}
+              />
+              <input
+                ref={galleryInput}
                 type="file"
                 accept="image/jpeg,image/png,image/gif,image/webp,image/avif,image/bmp"
-                capture="environment"
                 className="visually-hidden"
                 onChange={(event) => void selectFile(event.target.files?.[0])}
               />
@@ -602,33 +665,48 @@ export function ImageUploadPage() {
                   <button
                     className="replace-image"
                     type="button"
-                    onClick={() => fileInput.current?.click()}
+                    onClick={() => galleryInput.current?.click()}
                   >
-                    <RotateCcw size={14} /> Replace image
+                    <RotateCcw size={14} /> Choose another image
                   </button>
                 </div>
               ) : (
-                <button
-                  type="button"
-                  className="upload-dropzone"
-                  onClick={() => fileInput.current?.click()}
-                  onDragOver={(event) => event.preventDefault()}
-                  onDrop={(event) => {
-                    event.preventDefault()
-                    void selectFile(event.dataTransfer.files[0])
-                  }}
-                >
-                  <span className="upload-drop-icon">
-                    <Upload size={21} />
-                  </span>
-                  <strong>Drop your field image here</strong>
-                  <span>
-                    or <u>browse files</u> to upload
-                  </span>
-                  <small>
-                    JPG, PNG, or browser-previewable image · Max 20 MB
-                  </small>
-                </button>
+                <div className="upload-picker">
+                  <div className="upload-source-actions">
+                    <button
+                      className="button button-primary"
+                      type="button"
+                      onClick={() => cameraInput.current?.click()}
+                    >
+                      <Camera size={16} /> Take photo
+                    </button>
+                    <button
+                      className="button button-secondary"
+                      type="button"
+                      onClick={() => galleryInput.current?.click()}
+                    >
+                      <Images size={16} /> Choose from gallery
+                    </button>
+                  </div>
+                  <button
+                    type="button"
+                    className="upload-dropzone"
+                    onClick={() => galleryInput.current?.click()}
+                    onDragOver={(event) => event.preventDefault()}
+                    onDrop={(event) => {
+                      event.preventDefault()
+                      void selectFile(event.dataTransfer.files[0])
+                    }}
+                  >
+                    <span className="upload-drop-icon">
+                      <Upload size={21} />
+                    </span>
+                    <strong>Or drop a field image here</strong>
+                    <small>
+                      JPG, PNG, or browser-previewable image · Max 20 MB
+                    </small>
+                  </button>
+                </div>
               )}
               {error && (
                 <div className="form-error-banner">
@@ -878,6 +956,80 @@ export function ImageUploadPage() {
                   )}
                 </label>
               </div>
+              {confirmedLocation && assetCandidates && (
+                <div className="asset-match-panel">
+                  <div>
+                    <strong>Asset match</strong>
+                    <p>
+                      Choose whether this photo belongs to a nearby asset or
+                      starts a new record. Nothing is linked automatically.
+                    </p>
+                  </div>
+                  {(assetMatchAmbiguous || assetTypeConflict) && (
+                    <div className="hs-note-warn" role="status">
+                      {assetMatchAmbiguous
+                        ? "More than one same-type asset is nearby. This observation will need review."
+                        : "Only different-type assets are nearby. Confirm carefully; this observation will need review."}
+                    </div>
+                  )}
+                  {assetCandidates.sameType.length === 0 &&
+                    assetCandidates.otherType.length === 0 && (
+                      <p className="asset-match-empty">
+                        No assets are within 50 m. Select “Create new asset” to
+                        continue.
+                      </p>
+                    )}
+                  {[...assetCandidates.sameType, ...assetCandidates.otherType].map(
+                    ({ asset, distanceM }) => {
+                      const sameType = asset.type === watchedValues.assetType
+                      return (
+                        <button
+                          type="button"
+                          key={asset.id}
+                          className={`asset-match-option ${
+                            assetChoice === asset.id ? "selected" : ""
+                          }`}
+                          aria-pressed={assetChoice === asset.id}
+                          onClick={() => setAssetChoice(asset.id)}
+                        >
+                          <span>
+                            <strong>
+                              {sameType
+                                ? "Possible existing asset"
+                                : `Different type: ${asset.type}`}
+                            </strong>
+                            <small>
+                              {asset.name} · {Math.round(distanceM)} m away
+                              {asset.location.source === "demo"
+                                ? " · Demo asset"
+                                : ""}
+                            </small>
+                          </span>
+                          <span>
+                            {assetChoice === asset.id ? "Selected" : "Select"}
+                          </span>
+                        </button>
+                      )
+                    },
+                  )}
+                  <button
+                    type="button"
+                    className={`asset-match-option new-asset-option ${
+                      assetChoice === "new" ? "selected" : ""
+                    }`}
+                    aria-pressed={assetChoice === "new"}
+                    onClick={() => setAssetChoice("new")}
+                  >
+                    <span>
+                      <strong>Create new asset</strong>
+                      <small>
+                        Start a separate pending-review map record
+                      </small>
+                    </span>
+                    <span>{assetChoice === "new" ? "Selected" : "Select"}</span>
+                  </button>
+                </div>
+              )}
               <div className="officer-info">
                 <div className="avatar">{currentUser?.initials ?? "--"}</div>
                 <span>

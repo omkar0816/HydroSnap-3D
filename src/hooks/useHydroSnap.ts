@@ -1,6 +1,10 @@
 import { useMutation, useQuery, useQueryClient } from "@tanstack/react-query"
 import { hydrosnapService } from "@/services/hydrosnapService"
-import type { AnalysisJob, FieldObservation, Report } from "@/types/domain"
+import type {
+  AnalysisJob,
+  FieldObservation,
+  Report,
+} from "@/types/domain"
 
 export function useHydroSnap() {
   const queryClient = useQueryClient()
@@ -35,6 +39,10 @@ export function useHydroSnap() {
   const resultsQuery = useQuery({
     queryKey: ["results"],
     queryFn: hydrosnapService.getResults,
+  })
+  const pilotAnalysisQuery = useQuery({
+    queryKey: ["pilot-analysis"],
+    queryFn: hydrosnapService.getPilotAnalysis,
   })
   const interventionsQuery = useQuery({
     queryKey: ["interventions"],
@@ -86,6 +94,7 @@ export function useHydroSnap() {
     observations: observationsQuery,
     jobs: jobsQuery,
     results: resultsQuery,
+    pilotAnalysis: pilotAnalysisQuery,
     interventions: interventionsQuery,
     reports: reportsQuery,
     saveObservation,

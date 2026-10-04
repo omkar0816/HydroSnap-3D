@@ -18,6 +18,11 @@ const ImageUploadPage = lazy(() =>
     default: module.ImageUploadPage,
   })),
 )
+const AssetPassportPage = lazy(() =>
+  import("@/pages/AssetPassportPage").then((module) => ({
+    default: module.AssetPassportPage,
+  })),
+)
 const WorkspacePage = lazy(() =>
   import("@/pages/WorkspacePage").then((module) => ({
     default: module.WorkspacePage,
@@ -83,6 +88,10 @@ export default function App() {
             <Route path="/" element={<DashboardPage />} />
             <Route path="/map" element={<MapAnalysisPage />} />
             <Route path="/upload" element={<ImageUploadPage />} />
+            <Route
+              path="/assets/:assetId"
+              element={<AssetPassportPage />}
+            />
             <Route
               path="/watersheds"
               element={<WorkspacePage section="watersheds" />}

@@ -1,7 +1,8 @@
 # Prototype pass — report (3 Oct 2026)
 
 Scope agreed: a rough working prototype, frontend-only, following Phases 0–3
-of `EXECUTION_PLAN.md` where they don't need a backend.
+of [`internal/EXECUTION_PLAN.md`](internal/EXECUTION_PLAN.md) where they don't
+need a backend.
 
 ## Phase 0 — Stabilise & honesty
 **Changes**

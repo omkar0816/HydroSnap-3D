@@ -5,8 +5,10 @@
 - **Demo boundaries.** The three watersheds are hand-drawn shapes, not official
   SLUSI / CWC records. Real boundaries need `scripts/prepare_watersheds` + a
   licence-checked dataset.
-- **NDVI/NDWI are simulated** (fixed polygons and numbers). No satellite data
-  is fetched. Even when real, these are indicators, not proof of impact.
+- **Dashboard NDVI/NDWI and thematic polygons are simulated** (fixed polygons
+  and numbers). A separate Sentinel-2 pipeline test uses real scenes at a demo
+  fixture coordinate; its indices are explicitly not a real asset result or
+  impact evidence. Even verified satellite indicators are not proof of impact.
 - **Trust checks are rule-based and run in the browser.** They can be bypassed
   by a modified client; server-side checks are planned. No AI model exists;
   the app never rejects a photo automatically.
@@ -19,4 +21,5 @@
 - **Image stored as data URL in IndexedDB**: fine for a demo, heavy for many
   photos. Planned: blob storage + server upload.
 - **English only.** Hindi/Marathi planned for the upload flow.
-- **No PDF report yet.** Audit record export is JSON.
+- **PDF reports are browser-generated prototype documents.** They are not
+  digitally signed or server-verified. Audit record JSON remains available.

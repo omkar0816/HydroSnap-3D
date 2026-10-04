@@ -1,0 +1,263 @@
+{
+  "status": "pipeline-test",
+  "label": "Pipeline test, not a real result",
+  "fixtureAssetId": "ast-001",
+  "source": "Copernicus Sentinel-2 L2A via Element84 Earth Search STAC API",
+  "attribution": "Contains modified Copernicus Sentinel data 2023, 2025",
+  "generatedAt": "2026-10-04T07:00:45.479059+00:00",
+  "bounds": [
+    74.441,
+    18.194,
+    74.481,
+    18.233999999999998
+  ],
+  "images": {
+    "ndviBefore": "/data/pilot/ndvi_before.png",
+    "ndviAfter": "/data/pilot/ndvi_after.png",
+    "ndwiBefore": "/data/pilot/ndwi_before.png",
+    "ndwiAfter": "/data/pilot/ndwi_after.png"
+  },
+  "indices": {
+    "ndvi": {
+      "name": "NDVI",
+      "definition": "NDVI = (NIR - red) / (NIR + red)",
+      "before": {
+        "window": "2023-11-01/2023-12-31",
+        "scenes": [
+          {
+            "id": "S2A_43QDA_20231115_1_L2A",
+            "date": "2023-11-15",
+            "cloudCover": 0.003563
+          },
+          {
+            "id": "S2A_43QDA_20231115_0_L2A",
+            "date": "2023-11-15",
+            "cloudCover": 0.00357
+          },
+          {
+            "id": "S2B_43QDA_20231120_1_L2A",
+            "date": "2023-11-20",
+            "cloudCover": 16.460678
+          },
+          {
+            "id": "S2B_43QDA_20231210_0_L2A",
+            "date": "2023-12-10",
+            "cloudCover": 0.008434
+          },
+          {
+            "id": "S2A_43QDA_20231215_0_L2A",
+            "date": "2023-12-15",
+            "cloudCover": 0.614975
+          },
+          {
+            "id": "S2A_43QDA_20231225_0_L2A",
+            "date": "2023-12-25",
+            "cloudCover": 1.295324
+          },
+          {
+            "id": "S2B_43QDA_20231230_0_L2A",
+            "date": "2023-12-30",
+            "cloudCover": 6.888053
+          }
+        ],
+        "nearMean": 0.7859737277030945,
+        "controlMean": 0.6964405179023743,
+        "validNearPixels": 2750,
+        "validControlPixels": 93337
+      },
+      "after": {
+        "window": "2025-11-01/2025-12-31",
+        "scenes": [
+          {
+            "id": "S2A_43QDA_20251106_0_L2A",
+            "date": "2025-11-06",
+            "cloudCover": 28.265288
+          },
+          {
+            "id": "S2B_43QDA_20251109_0_L2A",
+            "date": "2025-11-09",
+            "cloudCover": 7e-06
+          },
+          {
+            "id": "S2C_43QDA_20251114_0_L2A",
+            "date": "2025-11-14",
+            "cloudCover": 5.6e-05
+          },
+          {
+            "id": "S2B_43QDA_20251119_0_L2A",
+            "date": "2025-11-19",
+            "cloudCover": 0.000146
+          },
+          {
+            "id": "S2C_43QDA_20251124_0_L2A",
+            "date": "2025-11-24",
+            "cloudCover": 18.212391
+          },
+          {
+            "id": "S2A_43QDA_20251126_0_L2A",
+            "date": "2025-11-26",
+            "cloudCover": 1.961228
+          },
+          {
+            "id": "S2C_43QDA_20251204_0_L2A",
+            "date": "2025-12-04",
+            "cloudCover": 2.953288
+          },
+          {
+            "id": "S2B_43QDA_20251209_0_L2A",
+            "date": "2025-12-09",
+            "cloudCover": 0.000338
+          },
+          {
+            "id": "S2C_43QDA_20251214_0_L2A",
+            "date": "2025-12-14",
+            "cloudCover": 0.0
+          },
+          {
+            "id": "S2A_43QDA_20251216_0_L2A",
+            "date": "2025-12-16",
+            "cloudCover": 0.000229
+          },
+          {
+            "id": "S2B_43QDA_20251219_0_L2A",
+            "date": "2025-12-19",
+            "cloudCover": 0.370384
+          },
+          {
+            "id": "S2B_43QDA_20251229_0_L2A",
+            "date": "2025-12-29",
+            "cloudCover": 0.000199
+          }
+        ],
+        "nearMean": 0.8396441340446472,
+        "controlMean": 0.7253705859184265,
+        "validNearPixels": 4202,
+        "validControlPixels": 134106
+      },
+      "nearChange": 0.053670406341552734,
+      "controlChange": 0.028930068016052246,
+      "differenceInDifferences": 0.02474033832550049
+    },
+    "ndwi": {
+      "name": "NDWI",
+      "definition": "NDWI, McFeeters = (green - NIR) / (green + NIR)",
+      "before": {
+        "window": "2023-11-01/2023-12-31",
+        "scenes": [
+          {
+            "id": "S2A_43QDA_20231115_1_L2A",
+            "date": "2023-11-15",
+            "cloudCover": 0.003563
+          },
+          {
+            "id": "S2A_43QDA_20231115_0_L2A",
+            "date": "2023-11-15",
+            "cloudCover": 0.00357
+          },
+          {
+            "id": "S2B_43QDA_20231120_1_L2A",
+            "date": "2023-11-20",
+            "cloudCover": 16.460678
+          },
+          {
+            "id": "S2B_43QDA_20231210_0_L2A",
+            "date": "2023-12-10",
+            "cloudCover": 0.008434
+          },
+          {
+            "id": "S2A_43QDA_20231215_0_L2A",
+            "date": "2023-12-15",
+            "cloudCover": 0.614975
+          },
+          {
+            "id": "S2A_43QDA_20231225_0_L2A",
+            "date": "2023-12-25",
+            "cloudCover": 1.295324
+          },
+          {
+            "id": "S2B_43QDA_20231230_0_L2A",
+            "date": "2023-12-30",
+            "cloudCover": 6.888053
+          }
+        ],
+        "nearMean": -0.8501236438751221,
+        "controlMean": -0.8348453640937805,
+        "validNearPixels": 967,
+        "validControlPixels": 51726
+      },
+      "after": {
+        "window": "2025-11-01/2025-12-31",
+        "scenes": [
+          {
+            "id": "S2A_43QDA_20251106_0_L2A",
+            "date": "2025-11-06",
+            "cloudCover": 28.265288
+          },
+          {
+            "id": "S2B_43QDA_20251109_0_L2A",
+            "date": "2025-11-09",
+            "cloudCover": 7e-06
+          },
+          {
+            "id": "S2C_43QDA_20251114_0_L2A",
+            "date": "2025-11-14",
+            "cloudCover": 5.6e-05
+          },
+          {
+            "id": "S2B_43QDA_20251119_0_L2A",
+            "date": "2025-11-19",
+            "cloudCover": 0.000146
+          },
+          {
+            "id": "S2C_43QDA_20251124_0_L2A",
+            "date": "2025-11-24",
+            "cloudCover": 18.212391
+          },
+          {
+            "id": "S2A_43QDA_20251126_0_L2A",
+            "date": "2025-11-26",
+            "cloudCover": 1.961228
+          },
+          {
+            "id": "S2C_43QDA_20251204_0_L2A",
+            "date": "2025-12-04",
+            "cloudCover": 2.953288
+          },
+          {
+            "id": "S2B_43QDA_20251209_0_L2A",
+            "date": "2025-12-09",
+            "cloudCover": 0.000338
+          },
+          {
+            "id": "S2C_43QDA_20251214_0_L2A",
+            "date": "2025-12-14",
+            "cloudCover": 0.0
+          },
+          {
+            "id": "S2A_43QDA_20251216_0_L2A",
+            "date": "2025-12-16",
+            "cloudCover": 0.000229
+          },
+          {
+            "id": "S2B_43QDA_20251219_0_L2A",
+            "date": "2025-12-19",
+            "cloudCover": 0.370384
+          },
+          {
+            "id": "S2B_43QDA_20251229_0_L2A",
+            "date": "2025-12-29",
+            "cloudCover": 0.000199
+          }
+        ],
+        "nearMean": -0.8748987317085266,
+        "controlMean": -0.7677627205848694,
+        "validNearPixels": 6071,
+        "validControlPixels": 138412
+      },
+      "nearChange": -0.02477508783340454,
+      "controlChange": 0.06708264350891113,
+      "differenceInDifferences": -0.09185773134231567
+    }
+  },
+  "interpretation": "No real-asset signal can be assessed: these coordinates identify a demo fixture, not a verified field asset. Do not treat the near/control difference-in-differences as evidence of impact."
+}

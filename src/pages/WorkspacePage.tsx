@@ -114,6 +114,7 @@ export function WorkspacePage({ section }: { section: Section }) {
   )
   const [statusFilter, setStatusFilter] = useState("All statuses")
   const [assetTypeFilter, setAssetTypeFilter] = useState("All types")
+  const [reportAssetId, setReportAssetId] = useState("")
   const [busy, setBusy] = useState(false)
   const [selectedLayer, setSelectedLayer] = useState<string>()
   const watersheds = data.watersheds.data ?? []
@@ -187,14 +188,25 @@ export function WorkspacePage({ section }: { section: Section }) {
     }
   }
 
-  async function makeReport(type: Report["type"]) {
+  async function makeReport(type: Report["type"], assetId?: string) {
     if (!activeWatershed) return
+    const reportAsset =
+      type === "Field inspection"
+        ? allAssets.find((item) => item.id === assetId)
+        : undefined
+    if (type === "Field inspection" && !reportAsset) {
+      context?.notify("Choose an asset for the field inspection report.")
+      return
+    }
     setBusy(true)
     try {
       await data.createReport.mutateAsync({
-        name: `${activeWatershed.name} ${type.toLowerCase()}`,
+        name: reportAsset
+          ? `${reportAsset.name} field inspection`
+          : `${activeWatershed.name} ${type.toLowerCase()}`,
         type,
         watershedId: activeWatershed.id,
+        ...(reportAsset ? { assetId: reportAsset.id } : {}),
       })
       context?.notify("Demo report created and added to your report list.")
     } catch (error) {
@@ -713,14 +725,26 @@ export function WorkspacePage({ section }: { section: Section }) {
                       </span>
                     </td>
                     <td>
-                      <button
-                        className="icon-button small-icon"
-                        aria-label={`Download ${report.name} (planned)`}
-                        disabled
-                        title="Planned"
-                      >
-                        <Download size={15} />
-                      </button>
+                      {report.type === "Field inspection" &&
+                      report.assetId ? (
+                        <Link
+                          className="icon-button small-icon"
+                          aria-label={`Download ${report.name}`}
+                          title="Open asset passport and download PDF"
+                          to={`/assets/${encodeURIComponent(report.assetId)}?download=pdf`}
+                        >
+                          <Download size={15} />
+                        </Link>
+                      ) : (
+                        <button
+                          className="icon-button small-icon"
+                          aria-label={`Download ${report.name} (planned)`}
+                          disabled
+                          title="Planned"
+                        >
+                          <Download size={15} />
+                        </button>
+                      )}
                     </td>
                   </tr>
                 ))}
@@ -733,6 +757,25 @@ export function WorkspacePage({ section }: { section: Section }) {
               <small>Select a report type to create a sample preview.</small>
             </div>
             <div>
+              <label className="report-asset-select">
+                <span>Asset for field inspection</span>
+                <select
+                  value={reportAssetId}
+                  onChange={(event) => setReportAssetId(event.target.value)}
+                >
+                  <option value="">Choose an asset</option>
+                  {allAssets
+                    .filter(
+                      (asset) => asset.watershedId === activeWatershed?.id,
+                    )
+                    .map((asset) => (
+                      <option key={asset.id} value={asset.id}>
+                        {asset.name}
+                        {asset.location.source === "demo" ? " · Demo" : ""}
+                      </option>
+                    ))}
+                </select>
+              </label>
               {([
                 "Field inspection",
                 "Asset registry",
@@ -741,10 +784,18 @@ export function WorkspacePage({ section }: { section: Section }) {
                 <button
                   key={type}
                   className="button button-secondary button-small"
-                  disabled={busy}
-                  onClick={() => void makeReport(type)}
+                  disabled={busy || (type === "Field inspection" && !reportAssetId)}
+                  title={type === "Field inspection" ? "Field inspection PDF" : "Planned"}
+                  onClick={() =>
+                    void makeReport(
+                      type,
+                      type === "Field inspection" ? reportAssetId : undefined,
+                    )
+                  }
                 >
-                  {type}
+                  {type === "Field inspection"
+                    ? "Generate field inspection"
+                    : `${type} · Planned`}
                 </button>
               ))}
             </div>

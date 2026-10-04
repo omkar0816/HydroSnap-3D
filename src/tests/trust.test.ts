@@ -62,6 +62,21 @@ describe("assessTrust", () => {
     )
   })
 
+  it("adds review reasons for ambiguous or conflicting nearby assets", () => {
+    const result = assessTrust({
+      ...base,
+      assetMatchAmbiguous: true,
+      assetTypeConflict: true,
+    })
+    expect(result.status).toBe("Needs review")
+    expect(result.reasons.map(({ code }) => code)).toContain(
+      "asset-match-ambiguous",
+    )
+    expect(result.reasons.map(({ code }) => code)).toContain(
+      "asset-type-conflict",
+    )
+  })
+
   it("compares camera and inspection calendar dates without timezone shifts", () => {
     const result = assessTrust({
       ...base,

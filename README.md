@@ -1,5 +1,7 @@
 # HydroSnap 3D
 
+**Live prototype:** [hydrosnap-3d.vercel.app](https://hydrosnap-3d.vercel.app/)
+
 Watershed field-evidence and monitoring prototype for **SIH 2026 · SIH26015**
 (DoLR, Ministry of Rural Development): geo-coded field photos + watershed
 boundaries + satellite indicators, built as an analytics/verification layer
@@ -9,6 +11,23 @@ that could sit on top of SRISHTI-DRISHTI.
 > connected yet. Watershed boundaries, assets and NDVI/NDWI values are
 > illustrative and labelled **Demo** in the UI. See
 > [`docs/LIMITATIONS.md`](docs/LIMITATIONS.md).
+
+## What's real and what is not
+
+| Real | Simulated | Planned |
+|---|---|---|
+| Browser-side image handling, EXIF parsing when present, device GPS, and explicit location confirmation | Watershed boundaries, seeded assets and streams, dashboard index values, mock analysis-job lifecycle, and the pipeline fixture location | Production API/database, verified field-asset records, operational satellite monitoring, and authenticated roles |
+| IndexedDB local queue and browser map rendering | Mock-mode sync, permissions, and role behavior | Hindi/Marathi interface and server-side trust checks |
+| Sentinel-2 scenes and browser-generated inspection PDFs | Sentinel-2 indices at the demo fixture are a pipeline test, not a real asset result; no real field photos are seeded | Verified real-pilot comparisons and a signed/server-verified report |
+
+The live build can change independently of this repository. Do not treat
+demo-coordinate analysis or illustrative records as evidence of watershed
+impact.
+
+## Screenshots
+
+**Screenshot placeholders:** real captures will be added after the next review.
+No screenshots are included yet; see [`docs/screenshots/README.md`](docs/screenshots/README.md).
 
 ## What works now (real code, demo data)
 
@@ -20,13 +39,16 @@ that could sit on top of SRISHTI-DRISHTI.
 | Choropleth (mapped / verified / pending) with legend | ✅ |
 | Optional real boundaries via PMTiles (`VITE_WATERSHED_PMTILES_URL`) | ✅ code ready, no data bundled |
 | Upload: EXIF GPS/time/camera, device GPS or pin, **officer must confirm** | ✅ |
+| Existing/new asset choice with an officer-confirmed nearby match | ✅ |
+| Asset Passport photo timeline and demo-fixture Sentinel-2 comparison | ✅ pipeline test only |
+| Client-generated asset inspection PDF with map snapshot and audit details | ✅ prototype, not digitally signed |
 | Point-in-polygon → watershed auto-assigned; warning if outside all | ✅ |
 | Stream snap preview for check dams / percolation tanks (point never moved silently) | ✅ demo streams |
 | Rule-based trust status (EXIF, time, GPS accuracy, SHA-256 duplicate, watershed, stream distance) with reasons | ✅ client preview |
 | Offline queue in IndexedDB, auto-sync on reconnect, backoff, idempotency key, "Sync now" | ✅ syncs to demo API in mock mode |
 | Role check: only GIS Analyst / Administrator can verify | ✅ UI-level |
 | Exports: assets GeoJSON / CSV, per-observation audit JSON | ✅ |
-| Backend (FastAPI + PostGIS), real satellite analytics, PDF, Hindi/Marathi | ⏳ planned |
+| Backend (FastAPI + PostGIS), verified real-asset satellite analysis, signed PDF, Hindi/Marathi | ⏳ planned |
 
 ## Run locally
 
@@ -105,11 +127,11 @@ Expected routes are listed in `docs/ARCHITECTURE.md`. Uploads are sent as
 
 Basemaps: OpenStreetMap, OpenTopoMap, Esri World Imagery (public tile
 endpoints; follow their usage terms and keep attribution). Labels are HTML
-markers, so no glyph server is needed. The service worker caches the app shell only after the site has been loaded
-online once; map tiles are not cached offline. The upload form can save evidence
-offline to this device and sync it when connectivity returns, but the map and
-its tiles are unavailable offline. Load the site online before demonstrating
-offline mode.
+markers, so no glyph server is needed. The service worker caches the app shell
+only after the site has been loaded online once; map tiles are not cached
+offline. The upload form can save evidence offline to this device and sync it
+when connectivity returns, but the map and its tiles are unavailable offline.
+Load the site online before demonstrating offline mode.
 
 The frontend is organized around the service boundary: route components use
 `useHydroSnap`, which calls `hydrosnapService`; demo records live separately in

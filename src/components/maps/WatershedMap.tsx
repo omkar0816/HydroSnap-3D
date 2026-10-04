@@ -12,7 +12,12 @@ import {
   geometryBounds,
   type Bounds,
 } from "@/utils/geo"
-import type { Asset, Watershed, WGS84Position } from "@/types/domain"
+import type {
+  Asset,
+  PilotAnalysis,
+  Watershed,
+  WGS84Position,
+} from "@/types/domain"
 import type {
   Feature,
   FeatureCollection,
@@ -57,10 +62,12 @@ interface WatershedMapProps {
   highlightAssetIds?: string[]
   /** Date for historical satellite imagery; omitted to use current imagery. */
   imageryDate?: string
+  pilotAnalysis?: PilotAnalysis | null
   onSelectAsset: (asset: Asset) => void
   onSelectWatershed?: (id: string, properties: Record<string, unknown>) => void
   onMapClick?: (position: WGS84Position) => void
   onCenterChange?: (position: WGS84Position) => void
+  onMapReady?: (map: MapLibreMap | null) => void
   className?: string
 }
 
@@ -122,7 +129,7 @@ function baseStyle(
       ),
       "src-satellite": raster(
         "https://server.arcgisonline.com/ArcGIS/rest/services/World_Imagery/MapServer/tile/{z}/{y}/{x}",
-        "Tiles © Esri",
+        "Source: Esri, Vantor, Earthstar Geographics, and the GIS User Community",
         19,
       ),
       "src-satellite-history": raster(
@@ -236,10 +243,12 @@ export function WatershedMap({
   choropleth,
   highlightAssetIds = [],
   imageryDate,
+  pilotAnalysis,
   onSelectAsset,
   onSelectWatershed,
   onMapClick,
   onCenterChange,
+  onMapReady,
   className,
 }: WatershedMapProps) {
   const containerRef = useRef<HTMLDivElement>(null)
@@ -251,6 +260,7 @@ export function WatershedMap({
     onSelectWatershed,
     onMapClick,
     onCenterChange,
+    onMapReady,
   })
   const measureRef = useRef(measure)
   const assetsRef = useRef(assets)
@@ -286,8 +296,9 @@ export function WatershedMap({
       onSelectWatershed,
       onMapClick,
       onCenterChange,
+      onMapReady,
     }
-  }, [onCenterChange, onMapClick, onSelectAsset, onSelectWatershed])
+  }, [onCenterChange, onMapClick, onMapReady, onSelectAsset, onSelectWatershed])
   useEffect(() => {
     measureRef.current = measure
   }, [measure])
@@ -523,8 +534,10 @@ export function WatershedMap({
         callbacks.current.onCenterChange?.([center.lng, center.lat])
       })
       setMapLoaded(true)
+      callbacks.current.onMapReady?.(map)
     })
     return () => {
+      callbacks.current.onMapReady?.(null)
       labelMarkers.current.forEach((marker) => marker.remove())
       labelMarkers.current = []
       map.remove()
@@ -630,8 +643,14 @@ export function WatershedMap({
   useEffect(() => {
     const map = mapRef.current
     if (!map || !mapLoaded) return
-    applyThematicLayers(map, streams, ndviOverlay, ndwiOverlay)
-  }, [mapLoaded, ndviOverlay, ndwiOverlay, streams])
+    applyThematicLayers(
+      map,
+      streams,
+      ndviOverlay,
+      ndwiOverlay,
+      pilotAnalysis,
+    )
+  }, [mapLoaded, ndviOverlay, ndwiOverlay, pilotAnalysis, streams])
 
   // Asset point features only change when the underlying data changes.
   useEffect(() => {
@@ -693,14 +712,33 @@ export function WatershedMap({
       ["streams-line", visibleLayers.streams],
       ["asset-new-halo", visibleLayers.assets],
       ["asset-points", visibleLayers.assets],
-      ["ndvi-overlay", visibleLayers.ndvi],
-      ["ndwi-overlay", visibleLayers.ndwi],
+      [
+        "ndvi-overlay",
+        visibleLayers.ndvi && !pilotAnalysis?.images.ndviAfter,
+      ],
+      [
+        "ndvi-pilot-overlay",
+        visibleLayers.ndvi && Boolean(pilotAnalysis?.images.ndviAfter),
+      ],
+      [
+        "ndwi-overlay",
+        visibleLayers.ndwi && !pilotAnalysis?.images.ndwiAfter,
+      ],
+      [
+        "ndwi-pilot-overlay",
+        visibleLayers.ndwi && Boolean(pilotAnalysis?.images.ndwiAfter),
+      ],
     ] as const
     visibility.forEach(([id, visible]) => {
       if (map.getLayer(id))
         map.setLayoutProperty(id, "visibility", visible ? "visible" : "none")
     })
-  }, [mapLoaded, visibleLayers])
+  }, [
+    mapLoaded,
+    pilotAnalysis?.images.ndviAfter,
+    pilotAnalysis?.images.ndwiAfter,
+    visibleLayers,
+  ])
 
   useEffect(() => {
     const map = mapRef.current
@@ -897,6 +935,7 @@ function applyThematicLayers(
   streams: FeatureCollection<LineStringGeometry> | undefined,
   ndvi: Feature<PolygonGeometry | MultiPolygonGeometry> | undefined,
   ndwi: Feature<PolygonGeometry | MultiPolygonGeometry> | undefined,
+  pilotAnalysis?: PilotAnalysis | null,
 ) {
   if (streams) {
     const source = map.getSource(
@@ -920,9 +959,78 @@ function applyThematicLayers(
       )
     }
   }
-  // DEMO: NDVI/NDWI overlays are simulated polygons, not satellite rasters.
+  const [west, south, east, north] = pilotAnalysis?.bounds ?? []
+  const imageBoundsValid =
+    west !== undefined &&
+    south !== undefined &&
+    east !== undefined &&
+    north !== undefined
+  if (imageBoundsValid && pilotAnalysis?.images.ndviAfter) {
+    addImageLayer(
+      map,
+      "ndvi-pilot",
+      "ndvi-pilot-overlay",
+      pilotAnalysis.images.ndviAfter,
+      west,
+      south,
+      east,
+      north,
+    )
+  } else {
+    removeImageLayer(map, "ndvi-pilot", "ndvi-pilot-overlay")
+  }
+  if (imageBoundsValid && pilotAnalysis?.images.ndwiAfter) {
+    addImageLayer(
+      map,
+      "ndwi-pilot",
+      "ndwi-pilot-overlay",
+      pilotAnalysis.images.ndwiAfter,
+      west,
+      south,
+      east,
+      north,
+    )
+  } else {
+    removeImageLayer(map, "ndwi-pilot", "ndwi-pilot-overlay")
+  }
+  // DEMO: NDVI/NDWI overlays are illustrative polygons, not satellite rasters.
   addFillLayer(map, "ndvi-demo", "ndvi-overlay", ndvi, "#4aa76d", 0.27)
   addFillLayer(map, "ndwi-demo", "ndwi-overlay", ndwi, "#45a7dd", 0.32)
+}
+
+function addImageLayer(
+  map: MapLibreMap,
+  sourceId: string,
+  layerId: string,
+  url: string,
+  west: number,
+  south: number,
+  east: number,
+  north: number,
+) {
+  removeImageLayer(map, sourceId, layerId)
+  const coordinates: [number, number][] = [
+    [west, north],
+    [east, north],
+    [east, south],
+    [west, south],
+  ]
+  map.addSource(sourceId, { type: "image", url, coordinates })
+  map.addLayer(
+    {
+      id: layerId,
+      type: "raster",
+      source: sourceId,
+      layout: { visibility: "none" },
+      paint: { "raster-opacity": 0.82 },
+    },
+    "asset-points",
+  )
+}
+
+function removeImageLayer(map: MapLibreMap, sourceId: string, layerId: string) {
+  if (map.getLayer(layerId)) map.removeLayer(layerId)
+  if (map.getSource(sourceId)) map.removeSource(sourceId)
 }
 
 function addFillLayer(

@@ -16,6 +16,7 @@ import {
   Waves,
   X,
 } from "lucide-react"
+import { Link } from "react-router-dom"
 import { AppContext } from "@/App"
 import { useHydroSnap } from "@/hooks/useHydroSnap"
 import {
@@ -259,6 +260,9 @@ export function MapAnalysisPage() {
         </div>
         <div className="heading-actions">
           <DemoBadge label="Demo boundaries & assets" />
+          {data.pilotAnalysis.data && (
+            <DemoBadge label="Pipeline test, not real result" />
+          )}
           <button
             className="button button-secondary"
             onClick={() => downloadAssetsGeoJson(allAssets)}
@@ -527,6 +531,7 @@ export function MapAnalysisPage() {
               onCenterChange={setCenter}
               basemap={basemap}
               imageryDate={imageryDate}
+              pilotAnalysis={data.pilotAnalysis.data}
               visibleLayers={visibleLayers}
               measure={measure}
               selectedAssetId={selectedAsset?.id}
@@ -589,16 +594,12 @@ export function MapAnalysisPage() {
                   {selectedAsset.location.coordinates[1].toFixed(5)}° N,{" "}
                   {selectedAsset.location.coordinates[0].toFixed(5)}° E
                 </div>
-                <button
+                <Link
                   className="asset-card-link"
-                  onClick={() =>
-                    context?.notify(
-                      "Asset detail opened in the Field evidence registry.",
-                    )
-                  }
+                  to={`/assets/${encodeURIComponent(selectedAsset.id)}`}
                 >
-                  View asset details <ChevronDown size={14} />
-                </button>
+                  Open Asset Passport <ChevronDown size={14} />
+                </Link>
               </div>
             )}
           </div>

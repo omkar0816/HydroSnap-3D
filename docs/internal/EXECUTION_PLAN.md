@@ -1,6 +1,6 @@
 # HydroSnap 3D: Execution Plan and Context Handoff
 
-> **How to use this file.** Upload it to the new Claude conversation (or put it in the repo as `docs/EXECUTION_PLAN.md` and point Claude Code at it). Paste the "Kick-off message" below as your first message. Then work phase by phase.
+> **How to use this file.** Upload it to the new Claude conversation (or point Claude Code at `docs/internal/EXECUTION_PLAN.md`). Paste the "Kick-off message" below as your first message. Then work phase by phase.
 
 ---
 

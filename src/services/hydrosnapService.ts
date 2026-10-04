@@ -5,12 +5,14 @@ import type {
   Asset,
   FieldObservation,
   Intervention,
+  PilotAnalysis,
   Report,
   ThematicLayer,
   TeamMember,
   User,
   Watershed,
 } from "@/types/domain"
+import { z } from "zod"
 import {
   assets,
   interventions,
@@ -36,6 +38,49 @@ let observationStore: FieldObservation[] = []
 let jobStore: AnalysisJob[] = [...jobs]
 let reportStore: Report[] = [...reports]
 
+const pilotSceneSchema = z.object({
+  id: z.string(),
+  date: z.string(),
+  cloudCover: z.number().nullable(),
+})
+const pilotWindowSchema = z.object({
+  window: z.string(),
+  scenes: z.array(pilotSceneSchema),
+  nearMean: z.number().nullable(),
+  controlMean: z.number().nullable(),
+  validNearPixels: z.number().int().nonnegative(),
+  validControlPixels: z.number().int().nonnegative(),
+})
+const pilotMetricSchema = z.object({
+  name: z.string(),
+  definition: z.string(),
+  before: pilotWindowSchema,
+  after: pilotWindowSchema,
+  nearChange: z.number().nullable(),
+  controlChange: z.number().nullable(),
+  differenceInDifferences: z.number().nullable(),
+})
+const pilotAnalysisSchema: z.ZodType<PilotAnalysis> = z.object({
+  status: z.enum(["pipeline-test", "no-data", "no-clear-signal"]),
+  label: z.literal("Pipeline test, not a real result"),
+  fixtureAssetId: z.string(),
+  source: z.string(),
+  attribution: z.string(),
+  generatedAt: z.string(),
+  bounds: z.tuple([z.number(), z.number(), z.number(), z.number()]),
+  images: z.object({
+    ndviBefore: z.string().optional(),
+    ndviAfter: z.string().optional(),
+    ndwiBefore: z.string().optional(),
+    ndwiAfter: z.string().optional(),
+  }),
+  indices: z.object({
+    ndvi: pilotMetricSchema,
+    ndwi: pilotMetricSchema,
+  }),
+  interpretation: z.string(),
+})
+
 const delay = (milliseconds = 180) =>
   new Promise<void>((resolve) => window.setTimeout(resolve, milliseconds))
 
@@ -60,13 +105,19 @@ export const hydrosnapService = {
       // back from the API, so they are not added twice.
       const unsynced = (await safeListQueue())
         .filter((record) => record.syncStatus !== "synced")
+        .filter((record) => !record.observation.assetId)
         .map((record) => observationToAsset(record.observation))
       const ids = new Set(apiAssets.map((asset) => asset.id))
       return [...apiAssets, ...unsynced.filter((asset) => !ids.has(asset.id))]
     }
     await delay()
     await loadOfflineObservations()
-    return [...assets, ...observationStore.map(observationToAsset)]
+    return [
+      ...assets,
+      ...observationStore
+        .filter((observation) => !observation.assetId)
+        .map(observationToAsset),
+    ]
   },
   getObservations: async () => {
     if (!env.useMockApi) {
@@ -93,6 +144,21 @@ export const hydrosnapService = {
     return jobStore
   },
   getResults: () => list<AnalysisResult>("/api/v1/analytics/results", results),
+  getPilotAnalysis: async (): Promise<PilotAnalysis | null> => {
+    const response = await fetch("/data/pilot/summary.json", {
+      headers: { Accept: "application/json" },
+    })
+    if (response.status === 404) return null
+    if (!response.ok) {
+      throw new Error(
+        `Could not load pilot analysis (HTTP ${response.status}).`,
+      )
+    }
+    if (!response.headers.get("content-type")?.toLowerCase().includes("json")) {
+      return null
+    }
+    return pilotAnalysisSchema.parse(await response.json())
+  },
   getInterventions: () =>
     list<Intervention>("/api/v1/interventions", interventions),
   getReports: async () => {

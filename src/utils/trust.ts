@@ -49,6 +49,8 @@ export interface TrustInput {
   declaredWatershedId: string
   snapDistanceMeters?: number
   manualShiftMeters?: number
+  assetMatchAmbiguous?: boolean
+  assetTypeConflict?: boolean
   now?: Date
 }
 
@@ -159,6 +161,23 @@ export function assessTrust(input: TrustInput): TrustAssessment {
         message: `${input.assetType} is ${Math.round(input.snapDistanceMeters)} m from the nearest mapped stream.`,
       })
     }
+  }
+
+  if (input.assetMatchAmbiguous) {
+    reasons.push({
+      code: "asset-match-ambiguous",
+      severity: "warning",
+      message:
+        "Multiple nearby assets of this type match the location; confirm the correct asset.",
+    })
+  }
+  if (input.assetTypeConflict) {
+    reasons.push({
+      code: "asset-type-conflict",
+      severity: "warning",
+      message:
+        "Nearby assets have a different type; confirm whether this is an existing or new asset.",
+    })
   }
 
   const hasCritical = reasons.some((reason) => reason.severity === "critical")

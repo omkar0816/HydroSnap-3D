@@ -169,6 +169,52 @@ export interface AnalysisResult {
   demo: boolean
 }
 
+export interface PilotScene {
+  id: string
+  date: string
+  cloudCover: number | null
+}
+
+export interface PilotWindowSummary {
+  window: string
+  scenes: PilotScene[]
+  nearMean: number | null
+  controlMean: number | null
+  validNearPixels: number
+  validControlPixels: number
+}
+
+export interface PilotMetricSummary {
+  name: string
+  definition: string
+  before: PilotWindowSummary
+  after: PilotWindowSummary
+  nearChange: number | null
+  controlChange: number | null
+  differenceInDifferences: number | null
+}
+
+export interface PilotAnalysis {
+  status: "pipeline-test" | "no-data" | "no-clear-signal"
+  label: "Pipeline test, not a real result"
+  fixtureAssetId: UUID
+  source: string
+  attribution: string
+  generatedAt: string
+  bounds: [west: number, south: number, east: number, north: number]
+  images: {
+    ndviBefore?: string
+    ndviAfter?: string
+    ndwiBefore?: string
+    ndwiAfter?: string
+  }
+  indices: {
+    ndvi: PilotMetricSummary
+    ndwi: PilotMetricSummary
+  }
+  interpretation: string
+}
+
 export interface Intervention {
   id: UUID
   name: string
@@ -185,6 +231,7 @@ export interface Report {
   id: UUID
   name: string
   type: "Watershed summary" | "Field inspection" | "Asset registry" | "Analytics"
+  assetId?: UUID
   watershedId: UUID
   createdAt: string
   status: "Ready" | "Generating"
