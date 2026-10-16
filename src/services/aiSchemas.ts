@@ -1,5 +1,5 @@
 import { z } from "zod"
-import { aiAssetLabels } from "../types/domain"
+import { aiAssetLabels } from "../types/domain.ts"
 
 export const aiPhotoAttributesSchema = z
   .object({

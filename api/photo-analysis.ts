@@ -1,8 +1,8 @@
 import { z } from "zod"
-import { generateGeminiJson } from "../server/gemini"
-import { checkRateLimit, readJson, validateOrigin } from "../server/request"
-import { aiPhotoResultSchema } from "../src/services/aiSchemas"
-import { aiAssetLabels } from "../src/types/domain"
+import { GeminiError, generateGeminiJson } from "../server/gemini.ts"
+import { checkRateLimit, readJson, validateOrigin } from "../server/request.ts"
+import { aiPhotoResultSchema } from "../src/services/aiSchemas.ts"
+import { aiAssetLabels } from "../src/types/domain.ts"
 
 const requestSchema = z
   .object({
@@ -40,16 +40,14 @@ export default {
     if (body instanceof Response) return body
     const parsed = requestSchema.safeParse(body)
     if (!parsed.success) {
-      return Response.json(
-        { error: "Invalid photo assessment request." },
-        { status: 400 },
-      )
+      return Response.json({ error: "Invalid photo assessment request." }, {
+        status: 400,
+      })
     }
     if (!parsed.data.imageBase64.startsWith("/9j/")) {
-      return Response.json(
-        { error: "Photo must be a JPEG image." },
-        { status: 400 },
-      )
+      return Response.json({ error: "Photo must be a JPEG image." }, {
+        status: 400,
+      })
     }
     try {
       const { result, modelName } = await generateGeminiJson(
@@ -59,11 +57,16 @@ export default {
         { mimeType: "image/jpeg", data: parsed.data.imageBase64 },
       )
       return Response.json({ ...result, modelName })
-    } catch {
-      return Response.json(
-        { error: "AI photo assessment is unavailable." },
-        { status: 502 },
-      )
+    } catch (error) {
+      if (error instanceof GeminiError) {
+        return Response.json(
+          { error: "AI photo assessment is unavailable.", code: error.code },
+          { status: error.status },
+        )
+      }
+      return Response.json({ error: "AI photo assessment is unavailable." }, {
+        status: 502,
+      })
     }
   },
 }

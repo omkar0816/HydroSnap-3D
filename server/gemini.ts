@@ -1,10 +1,23 @@
 import type { z } from "zod"
 
-const defaultModel = "gemini-2.5-flash"
-const requestTimeoutMs = 8_000
+const defaultModel = "gemini-3.8-flash"
+const requestTimeoutMs = 20_000
+
+export type GeminiErrorCode =
+  | "not-configured"
+  | "credential-rejected"
+  | "quota-exceeded"
+  | "model-unavailable"
+  | "timed-out"
+  | "invalid-response"
+  | "upstream-unavailable"
 
 export class GeminiError extends Error {
-  constructor(message: string) {
+  constructor(
+    message: string,
+    readonly code: GeminiErrorCode,
+    readonly status: number,
+  ) {
     super(message)
     this.name = "GeminiError"
   }
@@ -17,7 +30,9 @@ export async function generateGeminiJson<T>(
   image?: { mimeType: "image/jpeg"; data: string },
 ): Promise<{ result: T; modelName: string }> {
   const apiKey = process.env.GEMINI_API_KEY
-  if (!apiKey) throw new GeminiError("Gemini is not configured.")
+  if (!apiKey) {
+    throw new GeminiError("Gemini is not configured.", "not-configured", 503)
+  }
   const modelName = process.env.GEMINI_MODEL || defaultModel
   const controller = new AbortController()
   const timeout = setTimeout(() => controller.abort(), requestTimeoutMs)
@@ -60,7 +75,25 @@ export async function generateGeminiJson<T>(
       },
     )
     if (!response.ok) {
-      throw new GeminiError(`Gemini request failed (HTTP ${response.status}).`)
+      let code: GeminiErrorCode = "upstream-unavailable"
+      let status = 502
+      if (response.status === 401 || response.status === 403) {
+        code = "credential-rejected"
+        status = 503
+      } else if (response.status === 404) {
+        code = "model-unavailable"
+        status = 503
+      } else if (response.status === 429) {
+        code = "quota-exceeded"
+        status = 429
+      } else if (response.status === 503) {
+        status = 503
+      }
+      throw new GeminiError(
+        `Gemini request failed (HTTP ${response.status}).`,
+        code,
+        status,
+      )
     }
     const payload: unknown = await response.json()
     const candidateText = readCandidateText(payload)
@@ -68,19 +101,31 @@ export async function generateGeminiJson<T>(
     try {
       decoded = JSON.parse(candidateText)
     } catch {
-      throw new GeminiError("Gemini returned invalid JSON.")
+      throw new GeminiError(
+        "Gemini returned invalid JSON.",
+        "invalid-response",
+        502,
+      )
     }
     const parsed = schema.safeParse(decoded)
     if (!parsed.success) {
-      throw new GeminiError("Gemini returned an invalid shape.")
+      throw new GeminiError(
+        "Gemini returned an invalid shape.",
+        "invalid-response",
+        502,
+      )
     }
     return { result: parsed.data, modelName }
   } catch (error) {
     if (error instanceof GeminiError) throw error
     if (controller.signal.aborted) {
-      throw new GeminiError("Gemini request timed out.")
+      throw new GeminiError("Gemini request timed out.", "timed-out", 504)
     }
-    throw new GeminiError("Gemini could not complete the request.")
+    throw new GeminiError(
+      "Gemini could not complete the request.",
+      "upstream-unavailable",
+      502,
+    )
   } finally {
     clearTimeout(timeout)
   }
@@ -92,11 +137,19 @@ function readCandidateText(payload: unknown): string {
     payload === null ||
     !("candidates" in payload)
   ) {
-    throw new GeminiError("Gemini returned no response.")
+    throw new GeminiError(
+      "Gemini returned no response.",
+      "invalid-response",
+      502,
+    )
   }
   const candidates = payload.candidates
   if (!Array.isArray(candidates) || candidates.length === 0) {
-    throw new GeminiError("Gemini returned no response.")
+    throw new GeminiError(
+      "Gemini returned no response.",
+      "invalid-response",
+      502,
+    )
   }
   const candidate = candidates[0]
   if (
@@ -104,7 +157,11 @@ function readCandidateText(payload: unknown): string {
     candidate === null ||
     !("content" in candidate)
   ) {
-    throw new GeminiError("Gemini returned no response.")
+    throw new GeminiError(
+      "Gemini returned no response.",
+      "invalid-response",
+      502,
+    )
   }
   const content = candidate.content
   if (
@@ -112,11 +169,20 @@ function readCandidateText(payload: unknown): string {
     content === null ||
     !("parts" in content)
   ) {
-    throw new GeminiError("Gemini returned no response.")
+    throw new GeminiError(
+      "Gemini returned no response.",
+      "invalid-response",
+      502,
+    )
   }
   const parts = content.parts
-  if (!Array.isArray(parts))
-    throw new GeminiError("Gemini returned no response.")
+  if (!Array.isArray(parts)) {
+    throw new GeminiError(
+      "Gemini returned no response.",
+      "invalid-response",
+      502,
+    )
+  }
   const text = parts.find(
     (part): part is { text: string } =>
       typeof part === "object" &&
@@ -124,6 +190,12 @@ function readCandidateText(payload: unknown): string {
       "text" in part &&
       typeof part.text === "string",
   )?.text
-  if (!text) throw new GeminiError("Gemini returned no response.")
+  if (!text) {
+    throw new GeminiError(
+      "Gemini returned no response.",
+      "invalid-response",
+      502,
+    )
+  }
   return text
 }

@@ -134,12 +134,21 @@ Expected routes are listed in `docs/ARCHITECTURE.md`. Uploads are sent as
 Vercel serverless functions provide same-origin `POST /api/photo-analysis` and
 `POST /api/pilot-summary`. Configure `GEMINI_API_KEY` in Vercel Project
 Settings → Environment Variables; it has **no `VITE_` prefix** and is never
-sent to the browser. `GEMINI_MODEL` defaults to `gemini-2.5-flash`.
+sent to the browser. `GEMINI_MODEL` defaults to `gemini-3.8-flash`.
 `PHOTO_AI_ALLOWED_ORIGINS` is an optional comma-separated list of additional
 allowed origins. `.env.example` documents the variable names only; never paste
-the key into source files or commit it. For local API testing, use
-`vercel dev` with the same server-side environment variables; Vite alone does
-not serve the Vercel functions.
+the key into source files or commit it. For local Vite development, put it in
+the git-ignored `.env.local` file and restart the dev server; the Vite development
+server routes `/api/*` to the same server-side handlers without exposing the
+key to the browser. Production deployments still require the key in Vercel
+Project Settings > Environment Variables.
+
+To run the labelled-photo evaluation, install dependencies and use
+`pnpm evaluate:photos -- --labels eval/labels.csv --photos eval/photos
+--url http://localhost:8443 --out docs`. The runner requires licensed or
+consented photos and uses Sharp to apply the same 1024px JPEG preprocessing.
+It writes per-image results and a confusion table; it does not create or
+invent ground-truth labels.
 
 Photo checks send a browser-downscaled JPEG (longest edge 1024 px) and cache
 successful results by the original image SHA-256 in IndexedDB. Unavailable

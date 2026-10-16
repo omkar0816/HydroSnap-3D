@@ -87,10 +87,15 @@ async function requestPhotoAssessment(
       method: "POST",
       headers: { "Content-Type": "application/json" },
       body: JSON.stringify({ imageBase64, mimeType: "image/jpeg" }),
-      signal: AbortSignal.timeout(12_000),
+      signal: AbortSignal.timeout(25_000),
     })
     if (!response.ok) {
-      throw new Error(`Photo assessment returned HTTP ${response.status}.`)
+      const code = await readApiErrorCode(response)
+      throw new Error(
+        `Photo assessment returned HTTP ${response.status}${
+          code ? ` (${code})` : ""
+        }.`,
+      )
     }
     const body: unknown = await response.json()
     const parsed = zPhotoResponse(body)
@@ -131,10 +136,13 @@ export async function generatePilotSummary(
     method: "POST",
     headers: { "Content-Type": "application/json" },
     body: JSON.stringify(facts),
-    signal: AbortSignal.timeout(12_000),
+    signal: AbortSignal.timeout(25_000),
   })
   if (!response.ok) {
-    throw new Error(`AI summary returned HTTP ${response.status}.`)
+    const code = await readApiErrorCode(response)
+    throw new Error(
+      `AI summary returned HTTP ${response.status}${code ? ` (${code})` : ""}.`,
+    )
   }
   const body: unknown = await response.json()
   const parsed = zSummaryResponse(body)
@@ -190,6 +198,25 @@ function prefixIfMissing(text: string, prefix: string): string {
   return text.toLocaleLowerCase().includes(prefix.toLocaleLowerCase())
     ? text
     : `${prefix} ${text}`
+}
+
+async function readApiErrorCode(
+  response: Response,
+): Promise<string | undefined> {
+  try {
+    const body: unknown = await response.json()
+    if (
+      typeof body === "object" &&
+      body !== null &&
+      "code" in body &&
+      typeof body.code === "string"
+    ) {
+      return body.code
+    }
+  } catch (error) {
+    console.warn("Could not read the AI endpoint error response.", error)
+  }
+  return undefined
 }
 
 function zPhotoResponse(value: unknown): PhotoAnalysisResponse | undefined {

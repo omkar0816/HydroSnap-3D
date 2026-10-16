@@ -1,10 +1,10 @@
 import { z } from "zod"
-import { generateGeminiJson } from "../server/gemini"
-import { checkRateLimit, readJson, validateOrigin } from "../server/request"
+import { GeminiError, generateGeminiJson } from "../server/gemini.ts"
+import { checkRateLimit, readJson, validateOrigin } from "../server/request.ts"
 import {
   aiPilotSummaryTextSchema,
   pilotSummaryFactsSchema,
-} from "../src/services/aiSchemas"
+} from "../src/services/aiSchemas.ts"
 
 const systemInstruction = [
   "Write a concise research-summary note for a watershed monitoring prototype.",
@@ -29,10 +29,9 @@ export default {
     if (body instanceof Response) return body
     const parsed = pilotSummaryFactsSchema.safeParse(body)
     if (!parsed.success) {
-      return Response.json(
-        { error: "Invalid pilot summary input." },
-        { status: 400 },
-      )
+      return Response.json({ error: "Invalid pilot summary input." }, {
+        status: 400,
+      })
     }
     try {
       const { result, modelName } = await generateGeminiJson(
@@ -41,11 +40,16 @@ export default {
         aiPilotSummaryTextSchema,
       )
       return Response.json({ ...result, modelName })
-    } catch {
-      return Response.json(
-        { error: "AI pilot summary is unavailable." },
-        { status: 502 },
-      )
+    } catch (error) {
+      if (error instanceof GeminiError) {
+        return Response.json(
+          { error: "AI pilot summary is unavailable.", code: error.code },
+          { status: error.status },
+        )
+      }
+      return Response.json({ error: "AI pilot summary is unavailable." }, {
+        status: 502,
+      })
     }
-  }
+  },
 }
