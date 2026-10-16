@@ -260,9 +260,6 @@ export function MapAnalysisPage() {
         </div>
         <div className="heading-actions">
           <DemoBadge label="Illustrative boundaries & assets" />
-          {data.pilotAnalysis.data && (
-            <DemoBadge label="Pipeline test, not real result" />
-          )}
           <button
             className="button button-secondary"
             onClick={() => downloadAssetsGeoJson(allAssets)}

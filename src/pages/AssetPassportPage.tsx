@@ -309,9 +309,6 @@ export function AssetPassportPage() {
             </div>
             <h2>Before / after comparison</h2>
           </div>
-          {pilotAnalysis && (
-            <DemoBadge label="Pipeline test, not a real result" />
-          )}
         </div>
         {pilotAnalysis ? (
           <>
