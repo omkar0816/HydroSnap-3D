@@ -30,7 +30,7 @@ function demoBoundary(
   }
 }
 
-const bhimaBoundary = demoBoundary("Upper Bhima (demo)", [
+const bhimaBoundary = demoBoundary("Upper Bhima", [
   [74.456, 18.187],
   [74.498, 18.19],
   [74.524, 18.216],
@@ -41,7 +41,7 @@ const bhimaBoundary = demoBoundary("Upper Bhima (demo)", [
   [74.456, 18.187],
 ])
 
-const mulaBoundary = demoBoundary("Mula Headwaters (demo)", [
+const mulaBoundary = demoBoundary("Mula Headwaters", [
   [73.598, 18.522],
   [73.642, 18.516],
   [73.676, 18.538],
@@ -52,7 +52,7 @@ const mulaBoundary = demoBoundary("Mula Headwaters (demo)", [
   [73.598, 18.522],
 ])
 
-const indrayaniBoundary = demoBoundary("Indrayani East (demo)", [
+const indrayaniBoundary = demoBoundary("Indrayani East", [
   [73.712, 18.688],
   [73.761, 18.681],
   [73.797, 18.702],
@@ -63,7 +63,7 @@ const indrayaniBoundary = demoBoundary("Indrayani East (demo)", [
   [73.712, 18.688],
 ])
 
-const puneWaterwaysBoundary = demoBoundary("Pune Waterways (demo)", [
+const puneWaterwaysBoundary = demoBoundary("Pune Waterways", [
   [73.43, 18.35],
   [73.56, 18.32],
   [73.69, 18.34],
@@ -162,8 +162,8 @@ export const watersheds: Watershed[] = [
   },
   {
     id: "ws-pune-waterways",
-    name: "Pune Waterways (Demo)",
-    code: "MH-PUN-DEMO",
+    name: "Pune Waterways",
+    code: "MH-PUN-SAMPLE",
     district: "Pune",
     state: "Maharashtra",
     areaSqKm: 1100,
@@ -188,7 +188,7 @@ const locations: WGS84Position[] = [
 export const assets: Asset[] = [
   {
     id: "ast-010",
-    name: "Temghar Creek Check Dam (demo)",
+    name: "Temghar Creek Check Dam",
     type: "Check dam",
     watershedId: "ws-pune-waterways",
     location: {
@@ -200,11 +200,11 @@ export const assets: Asset[] = [
     lastInspected: "2026-09-29",
     village: "Temghar",
     description:
-      "Illustrative demo point near Temghar Dam; not a field-verified asset.",
+      "Illustrative point near Temghar Dam; not a field-verified asset.",
   },
   {
     id: "ast-011",
-    name: "Mulshi Watershed Plantation (demo)",
+    name: "Mulshi Watershed Plantation",
     type: "Plantation",
     watershedId: "ws-pune-waterways",
     location: {
@@ -216,11 +216,11 @@ export const assets: Asset[] = [
     lastInspected: "2026-09-27",
     village: "Mulshi",
     description:
-      "Illustrative demo point near Mulshi Dam and the Mula River; not field-verified.",
+      "Illustrative point near Mulshi Dam and the Mula River; not field-verified.",
   },
   {
     id: "ast-012",
-    name: "Panshet Reservoir Check Dam (demo)",
+    name: "Panshet Reservoir Check Dam",
     type: "Check dam",
     watershedId: "ws-pune-waterways",
     location: {
@@ -232,11 +232,11 @@ export const assets: Asset[] = [
     lastInspected: "2026-09-24",
     village: "Panshet",
     description:
-      "Illustrative demo point near Panshet Reservoir; not a field-verified asset.",
+      "Illustrative point near Panshet Reservoir; not a field-verified asset.",
   },
   {
     id: "ast-013",
-    name: "Varasgaon Farm Pond (demo)",
+    name: "Varasgaon Farm Pond",
     type: "Farm pond",
     watershedId: "ws-pune-waterways",
     location: {
@@ -248,11 +248,11 @@ export const assets: Asset[] = [
     lastInspected: "2026-09-22",
     village: "Varasgaon",
     description:
-      "Illustrative demo point near Varasgaon Dam; not a field-verified asset.",
+      "Illustrative point near Varasgaon Dam; not a field-verified asset.",
   },
   {
     id: "ast-014",
-    name: "Khadakwasla Stream Check Dam (demo)",
+    name: "Khadakwasla Stream Check Dam",
     type: "Check dam",
     watershedId: "ws-pune-waterways",
     location: {
@@ -264,11 +264,11 @@ export const assets: Asset[] = [
     lastInspected: "2026-09-20",
     village: "Khadakwasla",
     description:
-      "Illustrative demo point near Khadakwasla Dam and the Mutha River; not field-verified.",
+      "Illustrative point near Khadakwasla Dam and the Mutha River; not field-verified.",
   },
   {
     id: "ast-015",
-    name: "Warje Riverbank Plantation (demo)",
+    name: "Warje Riverbank Plantation",
     type: "Plantation",
     watershedId: "ws-pune-waterways",
     location: {
@@ -280,11 +280,11 @@ export const assets: Asset[] = [
     lastInspected: "2026-09-18",
     village: "Warje",
     description:
-      "Illustrative demo point along the Mutha River near Warje; not field-verified.",
+      "Illustrative point along the Mutha River near Warje; not field-verified.",
   },
   {
     id: "ast-016",
-    name: "Mula-Mutha Percolation Tank (demo)",
+    name: "Mula-Mutha Percolation Tank",
     type: "Percolation tank",
     watershedId: "ws-pune-waterways",
     location: {
@@ -296,11 +296,11 @@ export const assets: Asset[] = [
     lastInspected: "2026-09-16",
     village: "Pune",
     description:
-      "Illustrative demo point near the Mula-Mutha rivers; not a field-verified asset.",
+      "Illustrative point near the Mula-Mutha rivers; not a field-verified asset.",
   },
   {
     id: "ast-017",
-    name: "Pavana River Check Dam (demo)",
+    name: "Pavana River Check Dam",
     type: "Check dam",
     watershedId: "ws-pune-waterways",
     location: {
@@ -312,11 +312,11 @@ export const assets: Asset[] = [
     lastInspected: "2026-09-14",
     village: "Pavana",
     description:
-      "Illustrative demo point near Pavana Dam and the Pavana River; not field-verified.",
+      "Illustrative point near Pavana Dam and the Pavana River; not field-verified.",
   },
   {
     id: "ast-018",
-    name: "Alandi Riverbank Farm Pond (demo)",
+    name: "Alandi Riverbank Farm Pond",
     type: "Farm pond",
     watershedId: "ws-pune-waterways",
     location: {
@@ -328,7 +328,7 @@ export const assets: Asset[] = [
     lastInspected: "2026-09-11",
     village: "Alandi",
     description:
-      "Illustrative demo point near the Indrayani River; not a field-verified asset.",
+      "Illustrative point near the Indrayani River; not a field-verified asset.",
   },
   {
     id: "ast-001",
@@ -404,8 +404,8 @@ export const assets: Asset[] = [
     location: { type: "Point", coordinates: [73.631, 18.556], source: "demo" },
     status: "Pending review",
     lastInspected: "2026-09-26",
-    village: "Mulshi (demo)",
-    description: "Demo record: gabion check dam on a first-order stream.",
+    village: "Mulshi",
+    description: "Illustrative record: gabion check dam on a first-order stream.",
   },
   {
     id: "ast-008",
@@ -415,8 +415,8 @@ export const assets: Asset[] = [
     location: { type: "Point", coordinates: [73.655, 18.578], source: "demo" },
     status: "Verified",
     lastInspected: "2026-09-12",
-    village: "Mulshi (demo)",
-    description: "Demo record: contour trench plantation block.",
+    village: "Mulshi",
+    description: "Illustrative record: contour trench plantation block.",
   },
   {
     id: "ast-009",
@@ -426,8 +426,8 @@ export const assets: Asset[] = [
     location: { type: "Point", coordinates: [73.752, 18.716], source: "demo" },
     status: "Pending review",
     lastInspected: "2026-09-20",
-    village: "Indrayani (demo)",
-    description: "Demo record: lined farm pond awaiting first inspection.",
+    village: "Indrayani",
+    description: "Illustrative record: lined farm pond awaiting first inspection.",
   },
 ]
 
@@ -650,7 +650,7 @@ export const streams: FeatureCollection<LineStringGeometry> = {
     },
     {
       type: "Feature",
-      properties: { name: "Mula first-order stream (demo)" },
+      properties: { name: "Mula first-order stream" },
       geometry: {
         type: "LineString",
         coordinates: [
@@ -664,7 +664,7 @@ export const streams: FeatureCollection<LineStringGeometry> = {
     },
     {
       type: "Feature",
-      properties: { name: "Indrayani tributary (demo)" },
+      properties: { name: "Indrayani tributary" },
       geometry: {
         type: "LineString",
         coordinates: [
@@ -722,7 +722,7 @@ export const thematicLayers: ThematicLayer[] = [
     detail: "GeoJSON polygon · WGS84",
     dateLabel: "Boundary reference",
     description:
-      "Demonstration watershed outline for the active monitoring area.",
+      "Illustrative watershed outline for the active monitoring area.",
     visibleByDefault: true,
     demo: true,
     geometry: bhimaBoundary,
@@ -743,7 +743,7 @@ export const thematicLayers: ThematicLayer[] = [
     name: "Vegetation health · NDVI",
     group: "Satellite index",
     detail: "Simulated multispectral index",
-    dateLabel: "Sep 2026 · DEMO",
+    dateLabel: "Sep 2026 · Illustrative",
     description: "Illustrative normalized difference vegetation index overlay.",
     visibleByDefault: false,
     demo: true,
@@ -754,7 +754,7 @@ export const thematicLayers: ThematicLayer[] = [
     name: "Surface water · NDWI",
     group: "Satellite index",
     detail: "Simulated multispectral index",
-    dateLabel: "Sep 2026 · DEMO",
+    dateLabel: "Sep 2026 · Illustrative",
     description: "Illustrative normalized difference water index overlay.",
     visibleByDefault: false,
     demo: true,

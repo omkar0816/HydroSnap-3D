@@ -113,17 +113,16 @@ export function DashboardPage() {
       <div className="demo-banner">
         <span className="demo-symbol">i</span>
         <span>
-          <strong>DEMO ENVIRONMENT</strong>
+          <strong>ILLUSTRATIVE WORKSPACE</strong>
           <span>
-            {" "}
-            Sample data and satellite analytics are simulated for demonstration
-            only.
+            {" "}Sample data and satellite analytics are illustrative only and
+            are not verified environmental findings.
           </span>
         </span>
         <button
           onClick={() =>
             context?.notify(
-              "This workspace is using sample demonstration data.",
+              "This workspace contains illustrative sample data.",
             )
           }
         >
@@ -266,7 +265,7 @@ export function DashboardPage() {
               <LoadingBlock />
             ) : (
               <div className="loading-block">
-                No demo index results are available.
+                No sample index results are available.
               </div>
             )}
           </div>
@@ -427,7 +426,7 @@ export function DashboardPage() {
                 <span className="kicker-dot purple-dot" /> ANALYSIS JOBS
               </div>
               <h2>Processing queue</h2>
-              <DemoBadge label="Demo jobs" />
+              <DemoBadge label="Sample jobs" />
             </div>
             <Link className="panel-link" to="/analytics">
               All jobs <ArrowRight size={14} />
@@ -538,7 +537,7 @@ function MetricCard({
 }
 
 function LoadingBlock() {
-  return <div className="loading-block">Loading demo analysis…</div>
+  return <div className="loading-block">Loading sample analysis…</div>
 }
 
 function getMapPreview(

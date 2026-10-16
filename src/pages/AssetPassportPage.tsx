@@ -163,7 +163,7 @@ export function AssetPassportPage() {
           <p>Linked field observations and available satellite context.</p>
         </div>
         <div className="heading-actions">
-          {currentPhotoIsDemo && <DemoBadge label="Demo asset" />}
+          {currentPhotoIsDemo && <DemoBadge label="Illustrative asset" />}
           <button
             className="button button-primary"
             type="button"
@@ -217,7 +217,7 @@ export function AssetPassportPage() {
               </div>
               <h2>Map context</h2>
             </div>
-            {currentPhotoIsDemo && <DemoBadge label="Demo location" />}
+            {currentPhotoIsDemo && <DemoBadge label="Illustrative location" />}
           </div>
           <div className="passport-map-holder">
             <WatershedMap
@@ -326,7 +326,7 @@ export function AssetPassportPage() {
         ) : (
           <p className="passport-empty">
             No location-matched satellite analysis is available for this asset.
-            Demo satellite values elsewhere in the app are not used here.
+            Sample satellite values elsewhere in the app are not used here.
           </p>
         )}
       </section>

@@ -94,8 +94,8 @@ export function SyncIndicator() {
             ))}
           {env.useMockApi && (
             <p className="hs-muted">
-              Demo mode: records sync to the in-browser demo API only, not a
-              server.
+              Sample mode: records sync to the in-browser preview service only,
+              not a server.
             </p>
           )}
           <button

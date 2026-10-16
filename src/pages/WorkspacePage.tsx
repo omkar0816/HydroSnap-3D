@@ -178,7 +178,7 @@ export function WorkspacePage({ section }: { section: Section }) {
         watershedId: activeWatershed.id,
         type,
       })
-      context?.notify(`${type} demo analysis queued · ${job.id}`)
+      context?.notify(`${type} sample analysis queued · ${job.id}`)
     } catch (error) {
       context?.notify(
         error instanceof Error ? error.message : "Could not start analysis.",
@@ -208,7 +208,7 @@ export function WorkspacePage({ section }: { section: Section }) {
         watershedId: activeWatershed.id,
         ...(reportAsset ? { assetId: reportAsset.id } : {}),
       })
-      context?.notify("Demo report created and added to your report list.")
+      context?.notify("Sample report created and added to your report list.")
     } catch (error) {
       context?.notify(
         error instanceof Error ? error.message : "Could not create report.",
@@ -325,7 +325,7 @@ export function WorkspacePage({ section }: { section: Section }) {
             </table>
           </div>
           <div className="table-footnote">
-            Demo boundary data shown in GeoJSON-compatible WGS84 coordinates.
+            Illustrative boundary data shown in GeoJSON-compatible WGS84 coordinates.
           </div>
         </section>
       )}
@@ -446,8 +446,8 @@ export function WorkspacePage({ section }: { section: Section }) {
               <strong>SIMULATED THEMATIC LAYERS</strong>
               <span>
                 {" "}
-                NDVI and NDWI overlays in this workspace are illustrative demo
-                data, not environmental findings.
+                NDVI and NDWI overlays in this workspace are illustrative
+                sample data, not environmental findings.
               </span>
             </span>
             <Link to="/map">
@@ -516,7 +516,7 @@ export function WorkspacePage({ section }: { section: Section }) {
                       Rendering: MapLibre spatial overlay
                       <br />
                       Source status:{" "}
-                      {layer.demo ? "Simulated demo" : "API data"}
+                      {layer.demo ? "Illustrative sample" : "API data"}
                     </div>
                   )}
                 </article>
@@ -540,7 +540,7 @@ export function WorkspacePage({ section }: { section: Section }) {
               <Activity size={20} />
             </div>
             <div>
-              <strong>Demo analysis queue</strong>
+              <strong>Analysis queue</strong>
               <p>
                 Analysis jobs simulate a processing lifecycle. Connect a backend
                 and satellite provider before using results operationally.
@@ -564,7 +564,7 @@ export function WorkspacePage({ section }: { section: Section }) {
           <div className="analysis-grid">
             <section className="panel analysis-summary">
               <div className="section-kicker">
-                <span className="kicker-dot green-dot" /> LATEST DEMO INDICES
+                <span className="kicker-dot green-dot" /> LATEST SAMPLE INDICES
               </div>
               <h2>Environmental indicators</h2>
               <div className="index-reading">
@@ -605,7 +605,7 @@ export function WorkspacePage({ section }: { section: Section }) {
                     <span className="kicker-dot purple-dot" /> JOB HISTORY
                   </div>
                   <h2>Analysis jobs</h2>
-                  <DemoBadge label="Demo jobs" />
+                  <DemoBadge label="Sample jobs" />
                 </div>
                 <button
                   className="icon-button small-icon"
@@ -771,7 +771,7 @@ export function WorkspacePage({ section }: { section: Section }) {
                     .map((asset) => (
                       <option key={asset.id} value={asset.id}>
                         {asset.name}
-                        {asset.location.source === "demo" ? " · Demo" : ""}
+                        {asset.location.source === "demo" ? " · Illustrative" : ""}
                       </option>
                     ))}
                 </select>
@@ -810,7 +810,7 @@ export function WorkspacePage({ section }: { section: Section }) {
               <span className="kicker-dot blue-dot" /> WORKSPACE ACCESS
             </div>
             <h2>Field team</h2>
-            <p>Demo roster and role-based access preview.</p>
+            <p>Sample roster and role-based access preview.</p>
             <div className="team-list">
               {(data.teamMembers.data ?? []).map((member) => (
                 <div className="team-row" key={member.id}>
@@ -884,7 +884,7 @@ export function WorkspacePage({ section }: { section: Section }) {
                 <strong>Mode</strong>
                 <small>Data source for this workspace</small>
               </span>
-              <span className="status-pill status-amber">DEMO · MOCK API</span>
+              <span className="status-pill status-amber">SAMPLE · MOCK API</span>
             </div>
             <div className="setting-line">
               <span>
@@ -1145,7 +1145,7 @@ function AssetTable({
       )}
       <div className="table-footnote">
         Coordinates are WGS84 longitude / latitude on the API and shown as
-        latitude, longitude here. Sample assets are demo data.
+        latitude, longitude here. Sample assets are illustrative data.
       </div>
     </div>
   )
@@ -1204,7 +1204,7 @@ function InterventionCard({ item }: { item: Intervention }) {
       </div>
       {showDetails && (
         <div className="intervention-details">
-          <strong>Demo intervention details</strong>
+          <strong>Intervention details</strong>
           <span>
             {item.type} · {item.village}
           </span>
@@ -1233,7 +1233,7 @@ function Metric({
         </span>
       </div>
       <div className="metric-value">{value}</div>
-      <div className="metric-caption">Demo watershed data</div>
+      <div className="metric-caption">Sample watershed data</div>
     </div>
   )
 }

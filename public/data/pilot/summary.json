@@ -259,5 +259,5 @@
       "differenceInDifferences": -0.09185773134231567
     }
   },
-  "interpretation": "No real-asset signal can be assessed: these coordinates identify a demo fixture, not a verified field asset. Do not treat the near/control difference-in-differences as evidence of impact."
+  "interpretation": "No real-asset signal can be assessed: these coordinates identify a sample fixture, not a verified field asset. Do not treat the near/control difference-in-differences as evidence of impact."
 }

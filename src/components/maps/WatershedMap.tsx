@@ -863,7 +863,7 @@ export function WatershedMap({
       <div className="map-attribution-note">
         {env.watershedPmtilesUrl
           ? "Watershed tiles: see the data sources documentation"
-          : "DEMO watershed boundaries · not official records"}
+          : "Illustrative watershed boundaries · not official records"}
       </div>
     </div>
   )

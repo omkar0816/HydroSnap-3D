@@ -259,7 +259,7 @@ export function MapAnalysisPage() {
           </p>
         </div>
         <div className="heading-actions">
-          <DemoBadge label="Demo boundaries & assets" />
+          <DemoBadge label="Illustrative boundaries & assets" />
           {data.pilotAnalysis.data && (
             <DemoBadge label="Pipeline test, not real result" />
           )}
@@ -628,7 +628,7 @@ export function MapAnalysisPage() {
               {watershed?.district ?? "—"} district
             </div>
             <div className="map-data-warning">
-              <Activity size={13} /> DEMO DATA · SAMPLE FEATURES · NDVI/NDWI
+              <Activity size={13} /> ILLUSTRATIVE DATA · SAMPLE FEATURES · NDVI/NDWI
               OVERLAYS SIMULATED
             </div>
           </div>

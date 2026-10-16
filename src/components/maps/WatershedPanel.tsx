@@ -28,7 +28,7 @@ export function WatershedPanel({
       </button>
       <div className="hs-panel-kicker">
         {watershed.level.toUpperCase()}
-        {watershed.demo && <DemoBadge label="Demo boundary" />}
+        {watershed.demo && <DemoBadge label="Illustrative boundary" />}
       </div>
       <h3>{watershed.name}</h3>
       <p className="hs-panel-sub">

@@ -106,7 +106,7 @@ export async function createAssetInspectionPdf(
   line(`${input.asset.name} · ${input.asset.type} · ${input.asset.status}`)
   line(
     `Watershed: ${input.watershed?.name ?? input.asset.watershedId}${
-      input.watershed?.demo ? " (Demo boundary)" : ""
+      input.watershed?.demo ? " (Illustrative boundary)" : ""
     }`,
   )
   line(`Village: ${input.asset.village || "Not recorded"}`)
@@ -116,7 +116,7 @@ export async function createAssetInspectionPdf(
   line(`Last inspected: ${input.asset.lastInspected}`)
   if (input.asset.location.source === "demo") {
     line(
-      "DEMO ASSET: location and identity are illustrative, not field-verified.",
+      "ILLUSTRATIVE ASSET: location and identity are not field-verified.",
     )
   }
 
@@ -212,7 +212,7 @@ export async function createAssetInspectionPdf(
       }
     }
     line(`Attribution: ${input.pilotAnalysis.attribution}`)
-    line("Demo-coordinate pipeline test only; this is not evidence of impact.")
+    line("Sample-coordinate pipeline test only; this is not evidence of impact.")
   }
   if (input.aiPilotSummary) {
     heading("AI-generated summary")

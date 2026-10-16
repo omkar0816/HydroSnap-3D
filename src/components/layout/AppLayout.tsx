@@ -264,7 +264,7 @@ export function AppLayout({
             </span>
             <span>
               <strong>Need a hand?</strong>
-              <small>Contact demo support</small>
+              <small>Contact support</small>
             </span>
             <ChevronRight size={15} />
           </button>
@@ -314,7 +314,7 @@ export function AppLayout({
             <kbd>⌘ K</kbd>
           </form>
           <div className="topbar-actions">
-            {env.useMockApi && <DemoBadge label="Demo data" />}
+            {env.useMockApi && <DemoBadge label="Illustrative data" />}
             <SyncIndicator />
             <label className="watershed-select">
               <Waves size={16} />
@@ -447,7 +447,7 @@ export function AppLayout({
               </span>
               <div>
                 <h2 id="help-dialog-title">Need a hand?</h2>
-                <p>Contact Omkar for a demo walkthrough or help.</p>
+                <p>Contact Omkar for a product walkthrough or help.</p>
               </div>
               <button
                 className="icon-button"

@@ -1051,7 +1051,7 @@ export function ImageUploadPage() {
                           <small>
                             {asset.name} · {Math.round(distanceM)} m away
                             {asset.location.source === "demo"
-                              ? " · Demo asset"
+                              ? " · Illustrative asset"
                               : ""}
                           </small>
                         </span>
