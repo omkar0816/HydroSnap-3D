@@ -12,13 +12,10 @@ import {
   CheckCircle2,
   Crosshair,
   FileImage,
-  Images,
   LoaderCircle,
   MapPin,
   Navigation,
-  RotateCcw,
   ShieldCheck,
-  Upload,
   X,
 } from "lucide-react"
 import { Link } from "react-router-dom"
@@ -68,7 +65,6 @@ export function ImageUploadPage() {
   const { watersheds, saveObservation } = data
   const currentUser = data.currentUser.data
   const cameraInput = useRef<HTMLInputElement>(null)
-  const galleryInput = useRef<HTMLInputElement>(null)
   const fileSelectionId = useRef(0)
   const [file, setFile] = useState<File>()
   const [preview, setPreview] = useState("")
@@ -227,7 +223,6 @@ export function ImageUploadPage() {
   function clearImageSelection() {
     fileSelectionId.current++
     if (cameraInput.current) cameraInput.current.value = ""
-    if (galleryInput.current) galleryInput.current.value = ""
     setFile(undefined)
     setPreview("")
     setExifLocation(undefined)
@@ -703,8 +698,8 @@ export function ImageUploadPage() {
                 <div>
                   <h2>Field image</h2>
                   <p>
-                    Upload an image from the field. GPS metadata is read when
-                    available.
+                    Capture a photo with your device camera. GPS metadata is
+                    read when available.
                   </p>
                 </div>
                 <span className="optional-label">REQUIRED</span>
@@ -712,15 +707,8 @@ export function ImageUploadPage() {
               <input
                 ref={cameraInput}
                 type="file"
-                accept="image/jpeg,image/png,image/webp,image/avif,image/bmp"
+                accept="image/*"
                 capture="environment"
-                className="visually-hidden"
-                onChange={(event) => void selectFile(event.target.files?.[0])}
-              />
-              <input
-                ref={galleryInput}
-                type="file"
-                accept="image/jpeg,image/png,image/gif,image/webp,image/avif,image/bmp"
                 className="visually-hidden"
                 onChange={(event) => void selectFile(event.target.files?.[0])}
               />
@@ -750,9 +738,9 @@ export function ImageUploadPage() {
                   <button
                     className="replace-image"
                     type="button"
-                    onClick={() => galleryInput.current?.click()}
+                    onClick={() => cameraInput.current?.click()}
                   >
-                    <RotateCcw size={14} /> Choose another image
+                    <Camera size={14} /> Retake photo
                   </button>
                 </div>
               ) : (
@@ -765,32 +753,7 @@ export function ImageUploadPage() {
                     >
                       <Camera size={16} /> Take photo
                     </button>
-                    <button
-                      className="button button-secondary"
-                      type="button"
-                      onClick={() => galleryInput.current?.click()}
-                    >
-                      <Images size={16} /> Choose from gallery
-                    </button>
                   </div>
-                  <button
-                    type="button"
-                    className="upload-dropzone"
-                    onClick={() => galleryInput.current?.click()}
-                    onDragOver={(event) => event.preventDefault()}
-                    onDrop={(event) => {
-                      event.preventDefault()
-                      void selectFile(event.dataTransfer.files[0])
-                    }}
-                  >
-                    <span className="upload-drop-icon">
-                      <Upload size={21} />
-                    </span>
-                    <strong>Or drop a field image here</strong>
-                    <small>
-                      JPG, PNG, or browser-previewable image · Max 20 MB
-                    </small>
-                  </button>
                 </div>
               )}
               {error && (
@@ -808,8 +771,8 @@ export function ImageUploadPage() {
                   <h2>Location confirmation</h2>
                   <p>
                     Review the photo coordinates and explicitly confirm the
-                    position to use. Gallery photos may have no GPS metadata;
-                    use device GPS if coordinates are missing.
+                    position to use. The captured photo may have no GPS
+                    metadata; use device GPS if coordinates are missing.
                   </p>
                 </div>
                 <span className="optional-label">REQUIRED</span>
