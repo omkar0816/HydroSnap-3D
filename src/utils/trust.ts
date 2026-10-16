@@ -1,5 +1,6 @@
 import type {
   Asset,
+  AiAssessment,
   ExifSummary,
   FieldObservation,
   GeoLocation,
@@ -10,11 +11,11 @@ import type {
 import { calendarDateDistanceDays } from "@/utils/dates"
 
 /**
- * Client-side evidence checks (Phase 3 preview).
+ * Client-side evidence checks and advisory AI fusion.
  *
- * These are transparent rules, not an AI model. They never reject a photo:
- * the worst outcome is "Flagged" for a human reviewer. Server-side checks
- * (PostGIS, SHA-256 index, content model) are planned; see docs/ARCHITECTURE.md.
+ * These transparent rules and AI suggestions never reject a photo: "Flagged"
+ * routes evidence to a human reviewer. Server-side evidence validation
+ * remains planned; see docs/ARCHITECTURE.md.
  */
 export const trustConfig = {
   /** Max acceptable device-GPS accuracy radius before asking for review. */
@@ -25,6 +26,10 @@ export const trustConfig = {
   maxStreamSnapMeters: 150,
   /** Manual pin further than this from the EXIF position is flagged. */
   maxManualShiftMeters: 250,
+  /** AI results below this threshold need officer review. */
+  aiHighConfidence: 0.85,
+  /** Suggestions below this confidence are low-confidence, not medium. */
+  aiMediumConfidence: 0.6,
 }
 
 export const streamBasedTypes: Asset["type"][] = [
@@ -51,6 +56,7 @@ export interface TrustInput {
   manualShiftMeters?: number
   assetMatchAmbiguous?: boolean
   assetTypeConflict?: boolean
+  aiAssessment?: AiAssessment
   now?: Date
 }
 
@@ -180,17 +186,91 @@ export function assessTrust(input: TrustInput): TrustAssessment {
     })
   }
 
-  const hasCritical = reasons.some((reason) => reason.severity === "critical")
-  const hasWarning = reasons.some((reason) => reason.severity === "warning")
+  const assessment = {
+    status: "Consistent" as const,
+    reasons,
+    checkedAt: now.toISOString(),
+    engine: "client-preview" as const,
+  }
+  const baseAssessment = withReasonStatus(assessment)
+  return applyAiAssessment(
+    baseAssessment,
+    input.aiAssessment,
+    input.assetType,
+    now,
+  )
+}
+
+export function applyAiAssessment(
+  assessment: TrustAssessment,
+  aiAssessment: AiAssessment | undefined,
+  declaredType: Asset["type"],
+  now = new Date(),
+): TrustAssessment {
+  const reasons = assessment.reasons.filter(
+    ({ code }) =>
+      code !== "not-a-watershed-asset" &&
+      code !== "low-confidence" &&
+      code !== "type-mismatch",
+  )
+  if (aiAssessment?.status === "ok" && aiAssessment.predictedClass) {
+    const predicted = aiAssessment.predictedClass
+    if (predicted === "not-a-watershed-asset") {
+      reasons.push({
+        code: "not-a-watershed-asset",
+        severity: "warning",
+        message:
+          "AI suggests this photo may not show a watershed asset. Confirm the image before submission.",
+      })
+    } else if (predicted !== "unclear" && predicted !== declaredType) {
+      reasons.push({
+        code: "type-mismatch",
+        severity: "warning",
+        message: `AI suggested ${predicted}, while the selected type is ${declaredType}.`,
+      })
+    }
+    const confidence = aiAssessment.confidence ?? 0
+    if (predicted === "unclear" || confidence < trustConfig.aiHighConfidence) {
+      reasons.push({
+        code: "low-confidence",
+        severity: "warning",
+        message:
+          predicted === "unclear"
+            ? "AI could not clearly identify a watershed asset; officer review is recommended."
+            : confidence < trustConfig.aiMediumConfidence
+              ? `AI confidence is low (${Math.round(confidence * 100)}%); officer review is recommended.`
+              : `AI confidence is medium (${Math.round(confidence * 100)}%); officer review is recommended.`,
+      })
+    }
+  }
+  const updated = withReasonStatus({
+    ...assessment,
+    reasons,
+    checkedAt: now.toISOString(),
+    engine:
+      aiAssessment?.status === "ok"
+        ? "ai-assisted"
+        : assessment.engine === "ai-assisted"
+          ? "client-preview"
+          : assessment.engine,
+  })
+  return updated
+}
+
+function withReasonStatus(assessment: TrustAssessment): TrustAssessment {
+  const hasCritical = assessment.reasons.some(
+    (reason) => reason.severity === "critical",
+  )
+  const hasWarning = assessment.reasons.some(
+    (reason) => reason.severity === "warning",
+  )
   return {
+    ...assessment,
     status: hasCritical
       ? "Flagged"
       : hasWarning
         ? "Needs review"
         : "Consistent",
-    reasons,
-    checkedAt: now.toISOString(),
-    engine: "client-preview",
   }
 }
 

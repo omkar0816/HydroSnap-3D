@@ -2,6 +2,7 @@ import { jsPDF } from "jspdf"
 import type { Map as MapLibreMap } from "maplibre-gl"
 import type {
   Asset,
+  AiPilotSummary,
   FieldObservation,
   PilotAnalysis,
   Watershed,
@@ -13,6 +14,7 @@ export interface AssetReportInput {
   watershed?: Watershed
   observations: FieldObservation[]
   pilotAnalysis?: PilotAnalysis | null
+  aiPilotSummary?: AiPilotSummary
   mapSnapshot: string
 }
 
@@ -52,10 +54,11 @@ export async function createAssetInspectionPdf(
     generatedAt: new Date().toISOString(),
     asset: input.asset,
     watershed: input.watershed,
-    observations: input.observations.map(({ imageDataUrl: _image, ...record }) =>
-      record,
+    observations: input.observations.map(
+      ({ imageDataUrl: _image, ...record }) => record,
     ),
     pilotAnalysis: input.pilotAnalysis,
+    aiPilotSummary: input.aiPilotSummary,
   }
   const bundleHash = await sha256Hex(
     new Blob([JSON.stringify(reportBundle)], { type: "application/json" }),
@@ -102,7 +105,9 @@ export async function createAssetInspectionPdf(
   heading("Asset")
   line(`${input.asset.name} · ${input.asset.type} · ${input.asset.status}`)
   line(
-    `Watershed: ${input.watershed?.name ?? input.asset.watershedId}${input.watershed?.demo ? " (Demo boundary)" : ""}`,
+    `Watershed: ${input.watershed?.name ?? input.asset.watershedId}${
+      input.watershed?.demo ? " (Demo boundary)" : ""
+    }`,
   )
   line(`Village: ${input.asset.village || "Not recorded"}`)
   line(
@@ -110,22 +115,21 @@ export async function createAssetInspectionPdf(
   )
   line(`Last inspected: ${input.asset.lastInspected}`)
   if (input.asset.location.source === "demo") {
-    line("DEMO ASSET: location and identity are illustrative, not field-verified.")
+    line(
+      "DEMO ASSET: location and identity are illustrative, not field-verified.",
+    )
   }
 
   heading("Map snapshot")
   ensureSpace(84)
-  pdf.addImage(
-    input.mapSnapshot,
-    "PNG",
-    margin,
-    y,
-    pageWidth - margin * 2,
-    76,
-  )
+  pdf.addImage(input.mapSnapshot, "PNG", margin, y, pageWidth - margin * 2, 76)
   y += 81
 
-  heading(`Photo timeline (${input.observations.length} observation${input.observations.length === 1 ? "" : "s"})`)
+  heading(
+    `Photo timeline (${input.observations.length} observation${
+      input.observations.length === 1 ? "" : "s"
+    })`,
+  )
   if (!input.observations.length) line("No linked field photos are recorded.")
   for (const observation of input.observations) {
     ensureSpace(47)
@@ -152,19 +156,16 @@ export async function createAssetInspectionPdf(
     const metadata = [
       `Status: ${observation.verificationStatus}`,
       `SHA-256: ${observation.imageSha256 ?? "Unavailable"}`,
-      `EXIF: ${
-        observation.exif?.hasGps ? "GPS present" : "No GPS"
-      }${observation.exif?.takenAt ? ` · ${observation.exif.takenAt}` : ""}${
+      `EXIF: ${observation.exif?.hasGps ? "GPS present" : "No GPS"}${
+        observation.exif?.takenAt ? ` · ${observation.exif.takenAt}` : ""
+      }${
         observation.exif?.make || observation.exif?.model
           ? ` · ${[observation.exif.make, observation.exif.model].filter(Boolean).join(" ")}`
           : ""
       }`,
     ]
     pdf.text(
-      pdf.splitTextToSize(
-        metadata.join("\n"),
-        pageWidth - textX - margin,
-      ),
+      pdf.splitTextToSize(metadata.join("\n"), pageWidth - textX - margin),
       textX,
       y + 10,
     )
@@ -173,10 +174,7 @@ export async function createAssetInspectionPdf(
       line(`Trust ${reason.severity}: ${reason.message}`, 8)
     }
     for (const event of observation.auditHistory) {
-      line(
-        `${event.timestamp} · ${event.actor}: ${event.action}`,
-        7.5,
-      )
+      line(`${event.timestamp} · ${event.actor}: ${event.action}`, 7.5)
     }
     y += 3
   }
@@ -216,6 +214,33 @@ export async function createAssetInspectionPdf(
     line(`Attribution: ${input.pilotAnalysis.attribution}`)
     line("Demo-coordinate pipeline test only; this is not evidence of impact.")
   }
+  if (input.aiPilotSummary) {
+    heading("AI-generated summary")
+    line(
+      `Language review pending · Model ${input.aiPilotSummary.modelName} · Generated ${input.aiPilotSummary.generatedAt}`,
+    )
+    line(
+      "AI-generated text based only on supplied pilot metrics; not verified evidence or a causal impact finding.",
+    )
+    for (const [language, text] of [
+      ["English", input.aiPilotSummary.english],
+      ["Hindi · unreviewed", input.aiPilotSummary.hindi],
+      ["Marathi · unreviewed", input.aiPilotSummary.marathi],
+    ]) {
+      const card = await renderSummaryCard(language, text)
+      const imageHeight = (card.height / card.width) * (pageWidth - margin * 2)
+      ensureSpace(imageHeight + 5)
+      pdf.addImage(
+        card.dataUrl,
+        "PNG",
+        margin,
+        y,
+        pageWidth - margin * 2,
+        imageHeight,
+      )
+      y += imageHeight + 5
+    }
+  }
 
   const pageCount = pdf.getNumberOfPages()
   for (let page = 1; page <= pageCount; page++) {
@@ -223,17 +248,75 @@ export async function createAssetInspectionPdf(
     pdf.setFont("helvetica", "normal")
     pdf.setFontSize(7)
     pdf.setTextColor(105, 121, 135)
-    pdf.text(
-      `JSON bundle SHA-256: ${bundleHash}`,
-      margin,
-      pageHeight - 8,
-      { maxWidth: pageWidth - margin * 2 - 15 },
-    )
+    pdf.text(`JSON bundle SHA-256: ${bundleHash}`, margin, pageHeight - 8, {
+      maxWidth: pageWidth - margin * 2 - 15,
+    })
     pdf.text(`${page}/${pageCount}`, pageWidth - margin, pageHeight - 8, {
       align: "right",
     })
   }
   return pdf
+}
+
+async function renderSummaryCard(
+  language: string,
+  text: string,
+): Promise<{ dataUrl: string; width: number; height: number }> {
+  await document.fonts.load('28px "Noto Sans Devanagari"', "हिन्दी मराठी")
+  const canvas = document.createElement("canvas")
+  const width = 1400
+  const padding = 40
+  const context = canvas.getContext("2d")
+  if (!context) throw new Error("Could not render the AI summary for the PDF.")
+  context.font = '28px "Noto Sans Devanagari", "Arial", sans-serif'
+  const maxWidth = width - padding * 2
+  const lines = wrapCanvasText(context, text, maxWidth)
+  const lineHeight = 44
+  canvas.width = width
+  canvas.height = padding * 2 + lineHeight * (lines.length + 1)
+  const scaledContext = canvas.getContext("2d")
+  if (!scaledContext)
+    throw new Error("Could not render the AI summary for the PDF.")
+  scaledContext.fillStyle = "#ffffff"
+  scaledContext.fillRect(0, 0, canvas.width, canvas.height)
+  scaledContext.fillStyle = "#18354f"
+  scaledContext.font = '700 28px "Noto Sans Devanagari", "Arial", sans-serif'
+  scaledContext.fillText(language, padding, padding + lineHeight)
+  scaledContext.font = '28px "Noto Sans Devanagari", "Arial", sans-serif'
+  lines.forEach((lineText, index) => {
+    scaledContext.fillText(
+      lineText,
+      padding,
+      padding + lineHeight * (index + 2),
+    )
+  })
+  return {
+    dataUrl: canvas.toDataURL("image/png"),
+    width: canvas.width,
+    height: canvas.height,
+  }
+}
+
+function wrapCanvasText(
+  context: CanvasRenderingContext2D,
+  text: string,
+  maxWidth: number,
+): string[] {
+  const lines: string[] = []
+  for (const paragraph of text.split(/\r?\n/)) {
+    let lineText = ""
+    for (const word of paragraph.split(/\s+/)) {
+      const candidate = lineText ? `${lineText} ${word}` : word
+      if (lineText && context.measureText(candidate).width > maxWidth) {
+        lines.push(lineText)
+        lineText = word
+      } else {
+        lineText = candidate
+      }
+    }
+    if (lineText) lines.push(lineText)
+  }
+  return lines.length ? lines : [""]
 }
 
 function formatValue(value: number | null): string {

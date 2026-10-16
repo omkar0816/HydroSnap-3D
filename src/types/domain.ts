@@ -102,6 +102,7 @@ export interface FieldObservation {
   /** SHA-256 of the original image bytes (hex). */
   imageSha256?: string
   exif?: ExifSummary
+  aiAssessment?: AiAssessment
   /** How the watershed was assigned: point-in-polygon or officer choice. */
   watershedResolution?: "inside" | "outside" | "manual"
   /** Nearest point on a mapped stream (stream-based assets only). */
@@ -118,6 +119,46 @@ export interface ExifSummary {
   model?: string
 }
 
+export const aiAssetLabels = [
+  "Check dam",
+  "Farm pond",
+  "Plantation",
+  "Percolation tank",
+  "not-a-watershed-asset",
+  "unclear",
+] as const
+
+export type AiPredictedClass = typeof aiAssetLabels[number]
+
+export interface AiAssessmentAttributes {
+  visibleWater: boolean | null
+  visibleStructure: boolean | null
+  vegetation: "none" | "sparse" | "dense" | "unclear"
+  evidence: string
+}
+
+export type AiAssessment = {
+  status: "ok"
+  predictedClass: AiPredictedClass
+  confidence: number
+  attributes: AiAssessmentAttributes
+  modelName: string
+  checkedAt: string
+} | {
+  status: "unavailable"
+  modelName: string
+  checkedAt: string
+}
+
+export interface AiPilotSummary {
+  english: string
+  hindi: string
+  marathi: string
+  modelName: string
+  generatedAt: string
+  languageReview: "unreviewed"
+}
+
 export type TrustStatus = "Consistent" | "Needs review" | "Flagged"
 
 export interface TrustReason {
@@ -131,7 +172,7 @@ export interface TrustAssessment {
   reasons: TrustReason[]
   checkedAt: string
   /** "client-preview" = rule checks in the browser; server checks are planned. */
-  engine: "client-preview" | "server"
+  engine: "client-preview" | "ai-assisted" | "server"
 }
 
 export type SyncStatus = "pending" | "syncing" | "synced" | "failed"

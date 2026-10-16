@@ -2,6 +2,8 @@ import { env } from "@/config/env"
 import type {
   AnalysisJob,
   AnalysisResult,
+  AiAssessment,
+  AiPilotSummary,
   Asset,
   FieldObservation,
   Intervention,
@@ -25,6 +27,10 @@ import {
   watersheds,
 } from "@/services/mock/mockData"
 import { apiRequest } from "@/services/apiClient"
+import {
+  analyzePhoto as runPhotoAnalysis,
+  generatePilotSummary as runPilotSummary,
+} from "@/services/aiService"
 import {
   enqueueObservation,
   getQueued,
@@ -159,6 +165,10 @@ export const hydrosnapService = {
     }
     return pilotAnalysisSchema.parse(await response.json())
   },
+  analyzePhoto: (image: Blob, imageSha256?: string): Promise<AiAssessment> =>
+    runPhotoAnalysis(image, imageSha256),
+  generatePilotSummary: (analysis: PilotAnalysis): Promise<AiPilotSummary> =>
+    runPilotSummary(analysis),
   getInterventions: () =>
     list<Intervention>("/api/v1/interventions", interventions),
   getReports: async () => {

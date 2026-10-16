@@ -1,13 +1,24 @@
-import { useCallback, useContext, useEffect, useMemo, useRef, useState } from "react"
+import {
+  useCallback,
+  useContext,
+  useEffect,
+  useMemo,
+  useRef,
+  useState,
+} from "react"
 import { ArrowLeft, Download, MapPin, ShieldCheck } from "lucide-react"
 import { Link, useLocation, useParams } from "react-router-dom"
 import type { Map as MapLibreMap } from "maplibre-gl"
 import { AppContext } from "@/App"
 import { DemoBadge } from "@/components/common/DemoBadge"
 import { WatershedMap } from "@/components/maps/WatershedMap"
-import { useHydroSnap } from "@/hooks/useHydroSnap"
+import { useHydroSnap, usePilotSummary } from "@/hooks/useHydroSnap"
 import { captureMapSnapshot, createAssetInspectionPdf } from "@/utils/reportPdf"
-import type { FieldObservation, PilotMetricSummary } from "@/types/domain"
+import type {
+  AiPilotSummary,
+  FieldObservation,
+  PilotMetricSummary,
+} from "@/types/domain"
 
 const passportLayers = {
   boundary: true,
@@ -38,8 +49,7 @@ export function AssetPassportPage() {
       (data.observations.data ?? [])
         .filter(
           (item) =>
-            item.assetId === assetId ||
-            (!item.assetId && item.id === assetId),
+            item.assetId === assetId || (!item.assetId && item.id === assetId),
         )
         .sort(
           (a, b) =>
@@ -52,10 +62,10 @@ export function AssetPassportPage() {
   const latestPhoto = [...observations]
     .reverse()
     .find(({ imageDataUrl }) => imageDataUrl)
+  const pilotData = data.pilotAnalysis.data
   const pilotAnalysis =
-    data.pilotAnalysis.data?.fixtureAssetId === assetId
-      ? data.pilotAnalysis.data
-      : undefined
+    pilotData && pilotData.fixtureAssetId === assetId ? pilotData : undefined
+  const pilotSummary = usePilotSummary(pilotAnalysis)
   const handleMapReady = useCallback((map: MapLibreMap | null) => {
     mapRef.current = map
     setMapReady(Boolean(map))
@@ -77,6 +87,7 @@ export function AssetPassportPage() {
         watershed,
         observations,
         pilotAnalysis,
+        aiPilotSummary: pilotSummary.data,
         mapSnapshot,
       })
       pdf.save(`hydrosnap-${asset.id}-field-inspection.pdf`)
@@ -89,7 +100,7 @@ export function AssetPassportPage() {
     } finally {
       setDownloading(false)
     }
-  }, [asset, observations, pilotAnalysis, watershed])
+  }, [asset, observations, pilotAnalysis, pilotSummary.data, watershed])
 
   useEffect(() => {
     const requested = new URLSearchParams(location.search).get("download")
@@ -101,6 +112,7 @@ export function AssetPassportPage() {
       !data.observations.isFetched ||
       !data.watersheds.isFetched ||
       !data.pilotAnalysis.isFetched ||
+      (pilotAnalysis !== undefined && !pilotSummary.isFetched) ||
       autoDownloadStarted.current
     ) {
       return
@@ -116,6 +128,8 @@ export function AssetPassportPage() {
     downloadReport,
     location.search,
     mapReady,
+    pilotAnalysis,
+    pilotSummary.isFetched,
   ])
 
   if (!asset && data.assets.isFetched) {
@@ -183,7 +197,8 @@ export function AssetPassportPage() {
             </span>
           </div>
           <p>
-            {asset.type} · {asset.village} · {watershed?.name ?? "Watershed unavailable"}
+            {asset.type} · {asset.village} ·{" "}
+            {watershed?.name ?? "Watershed unavailable"}
           </p>
           <small>
             {asset.location.coordinates[1].toFixed(6)}° N,{" "}
@@ -299,7 +314,15 @@ export function AssetPassportPage() {
           )}
         </div>
         {pilotAnalysis ? (
-          <PilotComparison analysis={pilotAnalysis} />
+          <>
+            <PilotComparison analysis={pilotAnalysis} />
+            <AiGeneratedSummary
+              summary={pilotSummary.data}
+              loading={pilotSummary.isPending}
+              unavailable={pilotSummary.isError}
+              onRetry={() => void pilotSummary.refetch()}
+            />
+          </>
         ) : (
           <p className="passport-empty">
             No location-matched satellite analysis is available for this asset.
@@ -316,6 +339,68 @@ export function AssetPassportPage() {
         <Link to="/evidence">Review evidence registry</Link>
       </div>
     </div>
+  )
+}
+
+function AiGeneratedSummary({
+  summary,
+  loading,
+  unavailable,
+  onRetry,
+}: {
+  summary?: AiPilotSummary
+  loading: boolean
+  unavailable: boolean
+  onRetry: () => void
+}) {
+  return (
+    <section className="hs-ai-summary" aria-live="polite">
+      <div>
+        <span className="hs-ai-summary-badge">AI-GENERATED SUMMARY</span>
+        <p>
+          Summarized from the pilot-analysis metrics above. Not verified
+          evidence or a causal impact finding.
+        </p>
+      </div>
+      {loading && <p>Generating the English, Hindi, and Marathi versions…</p>}
+      {unavailable && (
+        <div className="hs-ai-summary-unavailable">
+          <p>
+            AI-generated summary unavailable. The underlying analysis remains
+            available.
+          </p>
+          <button
+            className="button button-secondary button-small"
+            type="button"
+            onClick={onRetry}
+          >
+            Retry summary
+          </button>
+        </div>
+      )}
+      {summary && (
+        <>
+          <p className="hs-ai-summary-review">
+            Language review: pending · Model {summary.modelName} · Generated{" "}
+            {new Date(summary.generatedAt).toLocaleString()}
+          </p>
+          <div className="hs-ai-summary-languages">
+            <article>
+              <h3>English</h3>
+              <p>{summary.english}</p>
+            </article>
+            <article lang="hi">
+              <h3>हिन्दी</h3>
+              <p>{summary.hindi}</p>
+            </article>
+            <article lang="mr">
+              <h3>मराठी</h3>
+              <p>{summary.marathi}</p>
+            </article>
+          </div>
+        </>
+      )}
+    </section>
   )
 }
 
@@ -338,6 +423,16 @@ function ObservationTimelineItem({
           {observation.officerName} · {observation.verificationStatus}
         </small>
         <small>{observation.description}</small>
+        {observation.aiAssessment?.status === "ok" && (
+          <small>
+            AI suggestion:{" "}
+            {observation.aiAssessment.predictedClass === "not-a-watershed-asset"
+              ? "not a watershed asset"
+              : observation.aiAssessment.predictedClass}{" "}
+            ({Math.round(observation.aiAssessment.confidence * 100)}%
+            confidence) · advisory only
+          </small>
+        )}
       </div>
     </li>
   )
@@ -346,9 +441,7 @@ function ObservationTimelineItem({
 function PilotComparison({
   analysis,
 }: {
-  analysis: NonNullable<
-    ReturnType<typeof useHydroSnap>["pilotAnalysis"]["data"]
-  >
+  analysis: NonNullable<ReturnType<typeof useHydroSnap>["pilotAnalysis"]["data"]>
 }) {
   return (
     <div className="pilot-comparison">

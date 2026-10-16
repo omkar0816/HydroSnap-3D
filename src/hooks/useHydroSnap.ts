@@ -3,8 +3,22 @@ import { hydrosnapService } from "@/services/hydrosnapService"
 import type {
   AnalysisJob,
   FieldObservation,
+  PilotAnalysis,
   Report,
 } from "@/types/domain"
+
+export function usePilotSummary(analysis?: PilotAnalysis) {
+  return useQuery({
+    queryKey: ["pilot-summary", analysis?.generatedAt],
+    queryFn: () => {
+      if (!analysis) throw new Error("Pilot analysis is not available.")
+      return hydrosnapService.generatePilotSummary(analysis)
+    },
+    enabled: Boolean(analysis),
+    retry: false,
+    staleTime: Number.POSITIVE_INFINITY,
+  })
+}
 
 export function useHydroSnap() {
   const queryClient = useQueryClient()
@@ -68,6 +82,15 @@ export function useHydroSnap() {
       void queryClient.invalidateQueries({ queryKey: ["observations"] })
     },
   })
+  const analyzePhoto = useMutation({
+    mutationFn: ({
+      image,
+      imageSha256,
+    }: {
+      image: Blob
+      imageSha256?: string
+    }) => hydrosnapService.analyzePhoto(image, imageSha256),
+  })
   const createAnalysis = useMutation({
     mutationFn: ({
       watershedId,
@@ -99,6 +122,7 @@ export function useHydroSnap() {
     reports: reportsQuery,
     saveObservation,
     verifyObservation,
+    analyzePhoto,
     createAnalysis,
     createReport,
   }

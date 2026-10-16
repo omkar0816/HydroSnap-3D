@@ -1,4 +1,8 @@
-import type { FieldObservation, QueuedObservation } from "@/types/domain"
+import type {
+  AiAssessment,
+  FieldObservation,
+  QueuedObservation,
+} from "@/types/domain"
 
 /**
  * IndexedDB store for field observations and their sync state.
@@ -8,6 +12,7 @@ import type { FieldObservation, QueuedObservation } from "@/types/domain"
 const databaseName = "hydrosnap-offline"
 const legacyStore = "field-observations"
 const queueStore = "sync-queue"
+const assessmentCacheStore = "ai-assessment-cache"
 let databasePromise: Promise<IDBDatabase> | undefined
 
 function openDatabase(): Promise<IDBDatabase> {
@@ -17,7 +22,7 @@ function openDatabase(): Promise<IDBDatabase> {
     )
   }
   databasePromise ??= new Promise((resolve, reject) => {
-    const request = indexedDB.open(databaseName, 2)
+    const request = indexedDB.open(databaseName, 3)
     request.onupgradeneeded = (event) => {
       const db = request.result
       if (!db.objectStoreNames.contains(legacyStore)) {
@@ -26,6 +31,9 @@ function openDatabase(): Promise<IDBDatabase> {
       if (!db.objectStoreNames.contains(queueStore)) {
         const queue = db.createObjectStore(queueStore, { keyPath: "id" })
         queue.createIndex("syncStatus", "syncStatus")
+      }
+      if (!db.objectStoreNames.contains(assessmentCacheStore)) {
+        db.createObjectStore(assessmentCacheStore, { keyPath: "imageSha256" })
       }
       if (event.oldVersion === 1) {
         const transaction = request.transaction
@@ -104,6 +112,54 @@ export function getQueued(id: string): Promise<QueuedObservation | undefined> {
 
 export async function putQueued(record: QueuedObservation): Promise<void> {
   await runRequest("readwrite", (store) => store.put(record))
+}
+
+export async function getCachedAiAssessment(
+  imageSha256: string,
+): Promise<AiAssessment | undefined> {
+  const db = await openDatabase()
+  return new Promise((resolve, reject) => {
+    const transaction = db.transaction(assessmentCacheStore, "readonly")
+    const request = transaction
+      .objectStore(assessmentCacheStore)
+      .get(imageSha256)
+    request.onsuccess = () => {
+      const record = request.result as {
+        imageSha256: string
+        assessment: AiAssessment
+      } | undefined
+      resolve(record?.assessment)
+    }
+    request.onerror = () =>
+      reject(
+        request.error ?? new Error("AI assessment cache could not be read."),
+      )
+  })
+}
+
+export async function cacheAiAssessment(
+  imageSha256: string,
+  assessment: AiAssessment,
+): Promise<void> {
+  const db = await openDatabase()
+  await new Promise<void>((resolve, reject) => {
+    const transaction = db.transaction(assessmentCacheStore, "readwrite")
+    transaction.objectStore(assessmentCacheStore).put({
+      imageSha256,
+      assessment,
+    })
+    transaction.oncomplete = () => resolve()
+    transaction.onerror = () =>
+      reject(
+        transaction.error ??
+          new Error("AI assessment cache could not be written."),
+      )
+    transaction.onabort = () =>
+      reject(
+        transaction.error ??
+          new Error("AI assessment cache write was aborted."),
+      )
+  })
 }
 
 /** Applies one read-modify-write operation atomically within IndexedDB. */

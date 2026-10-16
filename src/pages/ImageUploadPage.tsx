@@ -36,6 +36,7 @@ import {
 import { assessTrust, isStreamBased, sha256Hex } from "@/utils/trust"
 import { indiaDate, normalizeExifDateTime } from "@/utils/dates"
 import type {
+  AiAssessment,
   ExifSummary,
   FieldObservation,
   GeoLocation,
@@ -85,6 +86,9 @@ export function ImageUploadPage() {
   const [assetChoice, setAssetChoice] = useState<string>()
   const [exifSummary, setExifSummary] = useState<ExifSummary>()
   const [imageHash, setImageHash] = useState<string>()
+  const [aiAssessment, setAiAssessment] = useState<AiAssessment>()
+  const [aiCheckPending, setAiCheckPending] = useState(false)
+  const [aiOverrideReason, setAiOverrideReason] = useState("")
   const [watershedNote, setWatershedNote] = useState("")
   const assets = data.assets
   const streams = useMemo(() => {
@@ -117,8 +121,7 @@ export function ImageUploadPage() {
         : undefined,
     [assets.data, confirmedLocation, watchedValues.assetType],
   )
-  const assetMatchAmbiguous =
-    (assetCandidates?.sameType.length ?? 0) > 1
+  const assetMatchAmbiguous = (assetCandidates?.sameType.length ?? 0) > 1
   const assetTypeConflict =
     (assetCandidates?.sameType.length ?? 0) === 0 &&
     (assetCandidates?.otherType.length ?? 0) > 0
@@ -166,6 +169,7 @@ export function ImageUploadPage() {
       snapDistanceMeters: streamSnap?.distanceMeters,
       assetMatchAmbiguous,
       assetTypeConflict,
+      aiAssessment,
       manualShiftMeters:
         exifLocation && confirmedLocation.source !== "exif"
           ? distanceMeters(
@@ -180,6 +184,7 @@ export function ImageUploadPage() {
     data.observations.data,
     assetMatchAmbiguous,
     assetTypeConflict,
+    aiAssessment,
     exifLocation,
     exifSummary,
     imageHash,
@@ -237,6 +242,9 @@ export function ImageUploadPage() {
     setAssetChoice(undefined)
     setExifSummary(undefined)
     setImageHash(undefined)
+    setAiAssessment(undefined)
+    setAiCheckPending(false)
+    setAiOverrideReason("")
     setWatershedNote("")
     setShowLocationPicker(false)
   }
@@ -271,11 +279,19 @@ export function ImageUploadPage() {
     if (selectionId !== fileSelectionId.current) return
     setFile(selected)
     setExtracting(true)
+    setAiCheckPending(true)
     void sha256Hex(selected)
       .then((hash) => {
-        if (selectionId === fileSelectionId.current) setImageHash(hash)
+        if (selectionId !== fileSelectionId.current) return
+        setImageHash(hash)
+        startAiCheck(selected, hash, selectionId)
       })
-      .catch(() => undefined)
+      .catch((hashError: unknown) => {
+        console.warn("Could not hash the selected image.", hashError)
+        if (selectionId === fileSelectionId.current) {
+          startAiCheck(selected, undefined, selectionId)
+        }
+      })
     try {
       const tags = (await exifr
         .parse(selected, {
@@ -327,6 +343,33 @@ export function ImageUploadPage() {
     } finally {
       if (selectionId === fileSelectionId.current) setExtracting(false)
     }
+  }
+
+  function startAiCheck(
+    selected: File,
+    hash: string | undefined,
+    selectionId: number,
+  ) {
+    void data.analyzePhoto
+      .mutateAsync({ image: selected, imageSha256: hash })
+      .then((assessment) => {
+        if (selectionId === fileSelectionId.current) {
+          setAiAssessment(assessment)
+        }
+      })
+      .catch((analysisError: unknown) => {
+        console.warn("AI photo check could not be completed.", analysisError)
+        if (selectionId === fileSelectionId.current) {
+          setAiAssessment({
+            status: "unavailable",
+            modelName: "Gemini",
+            checkedAt: new Date().toISOString(),
+          })
+        }
+      })
+      .finally(() => {
+        if (selectionId === fileSelectionId.current) setAiCheckPending(false)
+      })
   }
 
   function setCoordinates(text: string) {
@@ -441,6 +484,18 @@ export function ImageUploadPage() {
       setLocationError("Confirm the photo location before saving.")
       return
     }
+    const predictedClass =
+      aiAssessment?.status === "ok" ? aiAssessment.predictedClass : undefined
+    const aiOverrideRequired =
+      aiAssessment?.status === "ok" &&
+      predictedClass !== undefined &&
+      predictedClass !== "unclear" &&
+      (predictedClass === "not-a-watershed-asset" ||
+        predictedClass !== values.assetType)
+    if (aiOverrideRequired && aiOverrideReason.trim().length < 5) {
+      setError("Explain why you are overriding the AI suggestion.")
+      return
+    }
     if (extracting) {
       setError("Wait for image metadata extraction to finish.")
       return
@@ -481,10 +536,39 @@ export function ImageUploadPage() {
         })
       }
       auditHistory.push({
-        action: `Client trust check: ${trust?.status ?? "not run"}`,
-        actor: "HydroSnap rules (client preview)",
+        action: `Trust check: ${trust?.status ?? "not run"}${
+          trust?.engine === "ai-assisted" ? " (AI-assisted)" : ""
+        }`,
+        actor:
+          trust?.engine === "ai-assisted"
+            ? "HydroSnap rules and AI (client preview)"
+            : "HydroSnap rules (client preview)",
         timestamp: now,
       })
+      if (aiAssessment?.status === "ok") {
+        auditHistory.push({
+          action: `AI suggested ${aiAssessment.predictedClass} (${Math.round((aiAssessment.confidence ?? 0) * 100)}%); officer chose ${values.assetType}.${
+            aiOverrideRequired
+              ? ` Override reason: ${aiOverrideReason.trim()}`
+              : ""
+          }`,
+          actor: currentUser.name,
+          timestamp: now,
+        })
+      } else if (aiAssessment?.status === "unavailable") {
+        auditHistory.push({
+          action:
+            "AI check unavailable; officer continued without an AI suggestion.",
+          actor: currentUser.name,
+          timestamp: now,
+        })
+      } else {
+        auditHistory.push({
+          action: "AI check pending; queued photo will be checked during sync.",
+          actor: currentUser.name,
+          timestamp: now,
+        })
+      }
       auditHistory.push({
         action: linkedAsset
           ? `Linked to ${linkedAsset.asset.id} (${Math.round(linkedAsset.distanceM)} m)`
@@ -503,6 +587,7 @@ export function ImageUploadPage() {
         idempotencyKey: id,
         imageSha256: imageHash,
         exif: exifSummary,
+        aiAssessment,
         watershedResolution: containingWatershed
           ? containingWatershed.id === values.watershedId
             ? "inside"
@@ -979,39 +1064,40 @@ export function ImageUploadPage() {
                         continue.
                       </p>
                     )}
-                  {[...assetCandidates.sameType, ...assetCandidates.otherType].map(
-                    ({ asset, distanceM }) => {
-                      const sameType = asset.type === watchedValues.assetType
-                      return (
-                        <button
-                          type="button"
-                          key={asset.id}
-                          className={`asset-match-option ${
-                            assetChoice === asset.id ? "selected" : ""
-                          }`}
-                          aria-pressed={assetChoice === asset.id}
-                          onClick={() => setAssetChoice(asset.id)}
-                        >
-                          <span>
-                            <strong>
-                              {sameType
-                                ? "Possible existing asset"
-                                : `Different type: ${asset.type}`}
-                            </strong>
-                            <small>
-                              {asset.name} · {Math.round(distanceM)} m away
-                              {asset.location.source === "demo"
-                                ? " · Demo asset"
-                                : ""}
-                            </small>
-                          </span>
-                          <span>
-                            {assetChoice === asset.id ? "Selected" : "Select"}
-                          </span>
-                        </button>
-                      )
-                    },
-                  )}
+                  {[
+                    ...assetCandidates.sameType,
+                    ...assetCandidates.otherType,
+                  ].map(({ asset, distanceM }) => {
+                    const sameType = asset.type === watchedValues.assetType
+                    return (
+                      <button
+                        type="button"
+                        key={asset.id}
+                        className={`asset-match-option ${
+                          assetChoice === asset.id ? "selected" : ""
+                        }`}
+                        aria-pressed={assetChoice === asset.id}
+                        onClick={() => setAssetChoice(asset.id)}
+                      >
+                        <span>
+                          <strong>
+                            {sameType
+                              ? "Possible existing asset"
+                              : `Different type: ${asset.type}`}
+                          </strong>
+                          <small>
+                            {asset.name} · {Math.round(distanceM)} m away
+                            {asset.location.source === "demo"
+                              ? " · Demo asset"
+                              : ""}
+                          </small>
+                        </span>
+                        <span>
+                          {assetChoice === asset.id ? "Selected" : "Select"}
+                        </span>
+                      </button>
+                    )
+                  })}
                   <button
                     type="button"
                     className={`asset-match-option new-asset-option ${
@@ -1022,9 +1108,7 @@ export function ImageUploadPage() {
                   >
                     <span>
                       <strong>Create new asset</strong>
-                      <small>
-                        Start a separate pending-review map record
-                      </small>
+                      <small>Start a separate pending-review map record</small>
                     </span>
                     <span>{assetChoice === "new" ? "Selected" : "Select"}</span>
                   </button>
@@ -1119,6 +1203,11 @@ export function ImageUploadPage() {
             <TrustPanel
               trust={trust}
               imageHash={imageHash}
+              aiAssessment={aiAssessment}
+              aiCheckPending={aiCheckPending}
+              declaredType={watchedValues.assetType}
+              aiOverrideReason={aiOverrideReason}
+              onAiOverrideReasonChange={setAiOverrideReason}
               snapDistanceMeters={streamSnap?.distanceMeters}
               streamName={streamSnap?.streamName}
             />
@@ -1128,10 +1217,13 @@ export function ImageUploadPage() {
               </div>
               <strong>Image classification</strong>
               <p>
-                No content model is enabled. Select and confirm the asset type
-                yourself; a future model will only suggest, never reject.
+                Gemini suggests a closed-set asset label and visible scene
+                attributes. It never verifies or rejects a record; officers
+                remain responsible for the selected type.
               </p>
-              <span className="future-badge">PLANNED · SUGGESTION ONLY</span>
+              <span className="future-badge">
+                AI-ASSISTED · SUGGESTION ONLY
+              </span>
             </section>
             <section className="panel upload-hint-panel offline-hint">
               <div className="upload-hint-icon">
