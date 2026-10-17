@@ -420,14 +420,14 @@ function ObservationTimelineItem({
           {observation.officerName} · {observation.verificationStatus}
         </small>
         <small>{observation.description}</small>
-        {observation.aiAssessment?.status === "ok" && (
+        {observation.photoContentReview && (
           <small>
-            AI suggestion:{" "}
-            {observation.aiAssessment.predictedClass === "not-a-watershed-asset"
-              ? "not a watershed asset"
-              : observation.aiAssessment.predictedClass}{" "}
-            ({Math.round(observation.aiAssessment.confidence * 100)}%
-            confidence) · advisory only
+            Photo content confirmed by {observation.photoContentReview.officerName}{" "}
+            on{" "}
+            {new Date(
+              observation.photoContentReview.confirmedAt,
+            ).toLocaleString()}
+            . Awaiting independent review.
           </small>
         )}
       </div>

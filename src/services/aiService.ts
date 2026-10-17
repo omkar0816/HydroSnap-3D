@@ -1,123 +1,18 @@
 import type {
-  AiAssessment,
-  AiAssessmentAttributes,
-  AiPredictedClass,
   AiPilotSummary,
   PilotAnalysis,
 } from "@/types/domain"
 import { z } from "zod"
 import {
   aiPilotSummaryTextSchema,
-  aiPhotoResultSchema,
-  cachedAiAssessmentSchema,
   pilotSummaryFactsSchema,
 } from "@/services/aiSchemas"
-import {
-  cacheAiAssessment,
-  getCachedAiAssessment,
-} from "@/services/offlineStore"
-import { blobToBase64, downscalePhoto } from "@/utils/photo"
-import { sha256Hex } from "@/utils/trust"
-
-interface PhotoAnalysisResponse {
-  predictedClass: AiPredictedClass
-  confidence: number
-  attributes: AiAssessmentAttributes
-  modelName: string
-}
 
 interface PilotSummaryResponse {
   english: string
   hindi: string
   marathi: string
   modelName: string
-}
-
-const assessmentMemoryCache = new Map<string, AiAssessment>()
-const assessmentInFlight = new Map<string, Promise<AiAssessment>>()
-
-export async function analyzePhoto(
-  image: Blob,
-  suppliedHash?: string,
-): Promise<AiAssessment> {
-  const imageSha256 = suppliedHash ?? (await sha256Hex(image))
-  if (imageSha256) {
-    const memoryCached = assessmentMemoryCache.get(imageSha256)
-    if (memoryCached) return memoryCached
-    const inFlight = assessmentInFlight.get(imageSha256)
-    if (inFlight) return inFlight
-    const pending = requestPhotoAssessment(image, imageSha256)
-    assessmentInFlight.set(imageSha256, pending)
-    try {
-      return await pending
-    } finally {
-      if (assessmentInFlight.get(imageSha256) === pending) {
-        assessmentInFlight.delete(imageSha256)
-      }
-    }
-  }
-  return requestPhotoAssessment(image, imageSha256)
-}
-
-async function requestPhotoAssessment(
-  image: Blob,
-  imageSha256: string | undefined,
-): Promise<AiAssessment> {
-  if (imageSha256) {
-    try {
-      const cached = await getCachedAiAssessment(imageSha256)
-      const valid = cachedAiAssessmentSchema.safeParse(cached)
-      if (valid.success && valid.data.status === "ok") {
-        assessmentMemoryCache.set(imageSha256, valid.data)
-        return valid.data
-      }
-      if (cached) console.warn("Ignoring an invalid cached AI assessment.")
-    } catch (error) {
-      console.warn("Could not read the AI assessment cache.", error)
-    }
-  }
-  if (typeof navigator !== "undefined" && !navigator.onLine) {
-    return unavailableAssessment()
-  }
-
-  try {
-    const compressed = await downscalePhoto(image)
-    const imageBase64 = await blobToBase64(compressed)
-    const response = await fetch("/api/photo-analysis", {
-      method: "POST",
-      headers: { "Content-Type": "application/json" },
-      body: JSON.stringify({ imageBase64, mimeType: "image/jpeg" }),
-      signal: AbortSignal.timeout(25_000),
-    })
-    if (!response.ok) {
-      const code = await readApiErrorCode(response)
-      throw new Error(
-        `Photo assessment returned HTTP ${response.status}${
-          code ? ` (${code})` : ""
-        }.`,
-      )
-    }
-    const body: unknown = await response.json()
-    const parsed = zPhotoResponse(body)
-    if (!parsed) throw new Error("Photo assessment response was invalid.")
-    const assessment: AiAssessment = {
-      status: "ok",
-      ...parsed,
-      checkedAt: new Date().toISOString(),
-    }
-    if (imageSha256) {
-      assessmentMemoryCache.set(imageSha256, assessment)
-      try {
-        await cacheAiAssessment(imageSha256, assessment)
-      } catch (error) {
-        console.warn("Could not store the AI assessment cache.", error)
-      }
-    }
-    return assessment
-  } catch (error) {
-    console.warn("AI photo assessment is unavailable.", error)
-    return unavailableAssessment()
-  }
 }
 
 export async function generatePilotSummary(
@@ -219,20 +114,6 @@ async function readApiErrorCode(
   return undefined
 }
 
-function zPhotoResponse(value: unknown): PhotoAnalysisResponse | undefined {
-  if (typeof value !== "object" || value === null || !("modelName" in value)) {
-    return undefined
-  }
-  const content = aiPhotoResultSchema.safeParse({
-    predictedClass:
-      "predictedClass" in value ? value.predictedClass : undefined,
-    confidence: "confidence" in value ? value.confidence : undefined,
-    attributes: "attributes" in value ? value.attributes : undefined,
-  })
-  if (!content.success || typeof value.modelName !== "string") return undefined
-  return { ...content.data, modelName: value.modelName }
-}
-
 function zSummaryResponse(value: unknown): PilotSummaryResponse | undefined {
   if (typeof value !== "object" || value === null || !("modelName" in value)) {
     return undefined
@@ -244,12 +125,4 @@ function zSummaryResponse(value: unknown): PilotSummaryResponse | undefined {
   })
   if (!content.success || typeof value.modelName !== "string") return undefined
   return { ...content.data, modelName: value.modelName }
-}
-
-function unavailableAssessment(): AiAssessment {
-  return {
-    status: "unavailable",
-    modelName: "Gemini",
-    checkedAt: new Date().toISOString(),
-  }
 }

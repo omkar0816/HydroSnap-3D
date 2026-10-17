@@ -2,8 +2,6 @@ import "fake-indexeddb/auto"
 import { describe, expect, it } from "vitest"
 import type { FieldObservation } from "@/types/domain"
 import {
-  cacheAiAssessment,
-  getCachedAiAssessment,
   enqueueObservation,
   listQueue,
   recoverInterruptedSync,
@@ -27,32 +25,18 @@ function observation(id: string): FieldObservation {
     officerId: "officer-test",
     officerName: "Test Officer",
     verificationStatus: "Pending review",
+    photoContentReview: {
+      status: "officer-confirmed",
+      officerId: "officer-test",
+      officerName: "Test Officer",
+      confirmedAt: "2026-10-01T00:00:00.000Z",
+    },
     createdAt: "2026-10-01T00:00:00.000Z",
     auditHistory: [],
   }
 }
 
 describe("offline queue", () => {
-  it("caches successful AI assessments by original image SHA-256", async () => {
-    const assessment = {
-      status: "ok" as const,
-      predictedClass: "Farm pond" as const,
-      confidence: 0.93,
-      attributes: {
-        visibleWater: true,
-        visibleStructure: true,
-        vegetation: "sparse" as const,
-        evidence: "Visible pond edge and water.",
-      },
-      modelName: "mock-gemini",
-      checkedAt: "2026-10-01T00:00:00.000Z",
-    }
-    await cacheAiAssessment("image-sha256", assessment)
-
-    expect(await getCachedAiAssessment("image-sha256")).toEqual(assessment)
-    expect(await getCachedAiAssessment("another-image")).toBeUndefined()
-  })
-
   it("recovers a persisted upload interrupted in the syncing state", async () => {
     const record = await enqueueObservation(observation("interrupted-upload"))
     await updateQueued(record.id, (current) =>

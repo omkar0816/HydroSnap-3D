@@ -33,7 +33,6 @@ import {
 import { assessTrust, isStreamBased, sha256Hex } from "@/utils/trust"
 import { indiaDate, normalizeExifDateTime } from "@/utils/dates"
 import type {
-  AiAssessment,
   ExifSummary,
   FieldObservation,
   GeoLocation,
@@ -82,9 +81,8 @@ export function ImageUploadPage() {
   const [assetChoice, setAssetChoice] = useState<string>()
   const [exifSummary, setExifSummary] = useState<ExifSummary>()
   const [imageHash, setImageHash] = useState<string>()
-  const [aiAssessment, setAiAssessment] = useState<AiAssessment>()
-  const [aiCheckPending, setAiCheckPending] = useState(false)
-  const [aiOverrideReason, setAiOverrideReason] = useState("")
+  const [hashing, setHashing] = useState(false)
+  const [photoContentConfirmed, setPhotoContentConfirmed] = useState(false)
   const [watershedNote, setWatershedNote] = useState("")
   const assets = data.assets
   const streams = useMemo(() => {
@@ -121,6 +119,15 @@ export function ImageUploadPage() {
   const assetTypeConflict =
     (assetCandidates?.sameType.length ?? 0) === 0 &&
     (assetCandidates?.otherType.length ?? 0) > 0
+  const selectedAssetMatch = useMemo(
+    () =>
+      assetChoice && assetChoice !== "new"
+        ? assetCandidates?.sameType
+            .concat(assetCandidates.otherType)
+            .find(({ asset }) => asset.id === assetChoice)
+        : undefined,
+    [assetCandidates, assetChoice],
+  )
   useEffect(() => {
     setAssetChoice(undefined)
   }, [
@@ -165,7 +172,17 @@ export function ImageUploadPage() {
       snapDistanceMeters: streamSnap?.distanceMeters,
       assetMatchAmbiguous,
       assetTypeConflict,
-      aiAssessment,
+      assetSelection:
+        assetChoice === "new"
+          ? { kind: "new" }
+          : selectedAssetMatch
+            ? {
+                kind: "existing",
+                id: selectedAssetMatch.asset.id,
+                type: selectedAssetMatch.asset.type,
+                distanceMeters: selectedAssetMatch.distanceM,
+              }
+            : undefined,
       manualShiftMeters:
         exifLocation && confirmedLocation.source !== "exif"
           ? distanceMeters(
@@ -180,10 +197,11 @@ export function ImageUploadPage() {
     data.observations.data,
     assetMatchAmbiguous,
     assetTypeConflict,
-    aiAssessment,
+    assetChoice,
     exifLocation,
     exifSummary,
     imageHash,
+    selectedAssetMatch,
     streamSnap,
     watchedValues.assetType,
     watchedValues.inspectionDate,
@@ -207,6 +225,16 @@ export function ImageUploadPage() {
       )
     }
   }, [confirmedLocation, containingWatershed, form])
+
+  useEffect(() => {
+    setPhotoContentConfirmed(false)
+  }, [
+    confirmedLocation?.coordinates[0],
+    confirmedLocation?.coordinates[1],
+    watchedValues.assetType,
+    watchedValues.watershedId,
+    assetChoice,
+  ])
 
   useEffect(() => {
     if (!context?.watershedId) return
@@ -237,9 +265,8 @@ export function ImageUploadPage() {
     setAssetChoice(undefined)
     setExifSummary(undefined)
     setImageHash(undefined)
-    setAiAssessment(undefined)
-    setAiCheckPending(false)
-    setAiOverrideReason("")
+    setHashing(false)
+    setPhotoContentConfirmed(false)
     setWatershedNote("")
     setShowLocationPicker(false)
   }
@@ -274,18 +301,17 @@ export function ImageUploadPage() {
     if (selectionId !== fileSelectionId.current) return
     setFile(selected)
     setExtracting(true)
-    setAiCheckPending(true)
+    setHashing(true)
     void sha256Hex(selected)
       .then((hash) => {
         if (selectionId !== fileSelectionId.current) return
         setImageHash(hash)
-        startAiCheck(selected, hash, selectionId)
       })
       .catch((hashError: unknown) => {
         console.warn("Could not hash the selected image.", hashError)
-        if (selectionId === fileSelectionId.current) {
-          startAiCheck(selected, undefined, selectionId)
-        }
+      })
+      .finally(() => {
+        if (selectionId === fileSelectionId.current) setHashing(false)
       })
     try {
       const tags = (await exifr
@@ -338,33 +364,6 @@ export function ImageUploadPage() {
     } finally {
       if (selectionId === fileSelectionId.current) setExtracting(false)
     }
-  }
-
-  function startAiCheck(
-    selected: File,
-    hash: string | undefined,
-    selectionId: number,
-  ) {
-    void data.analyzePhoto
-      .mutateAsync({ image: selected, imageSha256: hash })
-      .then((assessment) => {
-        if (selectionId === fileSelectionId.current) {
-          setAiAssessment(assessment)
-        }
-      })
-      .catch((analysisError: unknown) => {
-        console.warn("AI photo check could not be completed.", analysisError)
-        if (selectionId === fileSelectionId.current) {
-          setAiAssessment({
-            status: "unavailable",
-            modelName: "Gemini",
-            checkedAt: new Date().toISOString(),
-          })
-        }
-      })
-      .finally(() => {
-        if (selectionId === fileSelectionId.current) setAiCheckPending(false)
-      })
   }
 
   function setCoordinates(text: string) {
@@ -479,20 +478,18 @@ export function ImageUploadPage() {
       setLocationError("Confirm the photo location before saving.")
       return
     }
-    const predictedClass =
-      aiAssessment?.status === "ok" ? aiAssessment.predictedClass : undefined
-    const aiOverrideRequired =
-      aiAssessment?.status === "ok" &&
-      predictedClass !== undefined &&
-      predictedClass !== "unclear" &&
-      (predictedClass === "not-a-watershed-asset" ||
-        predictedClass !== values.assetType)
-    if (aiOverrideRequired && aiOverrideReason.trim().length < 5) {
-      setError("Explain why you are overriding the AI suggestion.")
+    if (!photoContentConfirmed) {
+      setError(
+        "Inspect the photo and confirm that it shows the selected watershed asset before saving.",
+      )
       return
     }
     if (extracting) {
       setError("Wait for image metadata extraction to finish.")
+      return
+    }
+    if (hashing) {
+      setError("Wait for the duplicate-image check to finish.")
       return
     }
     if (!assetChoice) {
@@ -531,39 +528,15 @@ export function ImageUploadPage() {
         })
       }
       auditHistory.push({
-        action: `Trust check: ${trust?.status ?? "not run"}${
-          trust?.engine === "ai-assisted" ? " (AI-assisted)" : ""
-        }`,
-        actor:
-          trust?.engine === "ai-assisted"
-            ? "HydroSnap rules and AI (client preview)"
-            : "HydroSnap rules (client preview)",
+        action: `Location and metadata checks: ${trust?.status ?? "not run"} (client preview).`,
+        actor: "HydroSnap rule checks (client preview)",
         timestamp: now,
       })
-      if (aiAssessment?.status === "ok") {
-        auditHistory.push({
-          action: `AI suggested ${aiAssessment.predictedClass} (${Math.round((aiAssessment.confidence ?? 0) * 100)}%); officer chose ${values.assetType}.${
-            aiOverrideRequired
-              ? ` Override reason: ${aiOverrideReason.trim()}`
-              : ""
-          }`,
-          actor: currentUser.name,
-          timestamp: now,
-        })
-      } else if (aiAssessment?.status === "unavailable") {
-        auditHistory.push({
-          action:
-            "AI check unavailable; officer continued without an AI suggestion.",
-          actor: currentUser.name,
-          timestamp: now,
-        })
-      } else {
-        auditHistory.push({
-          action: "AI check pending; queued photo will be checked during sync.",
-          actor: currentUser.name,
-          timestamp: now,
-        })
-      }
+      auditHistory.push({
+        action: `Officer confirmed that the photo shows the selected ${values.assetType} at the submitted location.`,
+        actor: currentUser.name,
+        timestamp: now,
+      })
       auditHistory.push({
         action: linkedAsset
           ? `Linked to ${linkedAsset.asset.id} (${Math.round(linkedAsset.distanceM)} m)`
@@ -582,7 +555,12 @@ export function ImageUploadPage() {
         idempotencyKey: id,
         imageSha256: imageHash,
         exif: exifSummary,
-        aiAssessment,
+        photoContentReview: {
+          status: "officer-confirmed",
+          officerId: currentUser.id,
+          officerName: currentUser.name,
+          confirmedAt: now,
+        },
         watershedResolution: containingWatershed
           ? containingWatershed.id === values.watershedId
             ? "inside"
@@ -1077,6 +1055,24 @@ export function ImageUploadPage() {
                   </button>
                 </div>
               )}
+              <label className="hs-content-confirmation">
+                <input
+                  type="checkbox"
+                  checked={photoContentConfirmed}
+                  disabled={!file || !confirmedLocation}
+                  onChange={(event) =>
+                    setPhotoContentConfirmed(event.target.checked)
+                  }
+                />
+                <span>
+                  <strong>Officer photo-content check (required)</strong>
+                  <small>
+                    I inspected this image and confirm it visibly shows the
+                    selected {watchedValues.assetType} at the field location.
+                    Automated checks cannot verify image content.
+                  </small>
+                </span>
+              </label>
               <div className="officer-info">
                 <div className="avatar">{currentUser?.initials ?? "--"}</div>
                 <span>
@@ -1098,7 +1094,7 @@ export function ImageUploadPage() {
               <button
                 className="button button-primary"
                 type="submit"
-                disabled={saving || extracting || !currentUser}
+                disabled={saving || extracting || hashing || !currentUser}
               >
                 {saving ? (
                   <>
@@ -1166,27 +1162,25 @@ export function ImageUploadPage() {
             <TrustPanel
               trust={trust}
               imageHash={imageHash}
-              aiAssessment={aiAssessment}
-              aiCheckPending={aiCheckPending}
-              declaredType={watchedValues.assetType}
-              aiOverrideReason={aiOverrideReason}
-              onAiOverrideReasonChange={setAiOverrideReason}
               snapDistanceMeters={streamSnap?.distanceMeters}
               streamName={streamSnap?.streamName}
+              location={confirmedLocation}
+              exifLocation={exifLocation}
+              watershedName={containingWatershed?.name}
+              watershedIsDemo={containingWatershed?.demo}
+              photoContentConfirmed={photoContentConfirmed}
             />
             <section className="panel upload-hint-panel">
               <div className="upload-hint-icon">
                 <FileImage size={17} />
               </div>
-              <strong>Image classification</strong>
+              <strong>Evidence review</strong>
               <p>
-                Gemini suggests a closed-set asset label and visible scene
-                attributes. It never verifies or rejects a record; officers
-                remain responsible for the selected type.
+                GPS and map rules compare the uploaded photo metadata with the
+                selected location and watershed. An officer must inspect the
+                actual image and confirm its content before it can be saved.
               </p>
-              <span className="future-badge">
-                AI-ASSISTED · SUGGESTION ONLY
-              </span>
+              <span className="future-badge">LOCAL RULE CHECKS · NO AI API</span>
             </section>
             <section className="panel upload-hint-panel offline-hint">
               <div className="upload-hint-icon">

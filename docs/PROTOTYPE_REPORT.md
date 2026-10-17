@@ -40,13 +40,12 @@ Boundaries, streams, assets, NDVI/NDWI, sync target (mock), roles (no auth).
 
 ## AI prototype additions
 
-Vercel functions now provide optional Gemini photo suggestions and
-PilotAnalysis summaries. Photo suggestions use a closed label set, are
-warning-only, and are never verification. English/Hindi/Marathi summaries use
-only supplied pilot metrics and are marked AI-generated; translations still
-need speaker review. No labelled 40–60 photo set was supplied for accuracy
-testing, so no model accuracy or confusion-matrix values are claimed. See
-[`AI_EVALUATION.md`](AI_EVALUATION.md) for the evaluation protocol/template.
+The photo workflow uses local metadata and spatial checks and requires an
+officer content attestation; it does not classify photo pixels. The optional
+Gemini endpoint is used only for PilotAnalysis summaries. English/Hindi/Marathi
+summary translations still need speaker review. No custom visual model or
+labelled photo set is included. See [`AI_EVALUATION.md`](AI_EVALUATION.md) for
+the prerequisites for adding and evaluating one.
 
 ## Next step
 Phase 2 backend: FastAPI + PostGIS via docker compose implementing the routes

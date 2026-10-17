@@ -1,6 +1,5 @@
 import type {
   Asset,
-  AiAssessment,
   ExifSummary,
   FieldObservation,
   GeoLocation,
@@ -11,11 +10,10 @@ import type {
 import { calendarDateDistanceDays } from "@/utils/dates"
 
 /**
- * Client-side evidence checks and advisory AI fusion.
+ * Deterministic client-side evidence checks.
  *
- * These transparent rules and AI suggestions never reject a photo: "Flagged"
- * routes evidence to a human reviewer. Server-side evidence validation
- * remains planned; see docs/ARCHITECTURE.md.
+ * These checks are a preview only: "Flagged" routes evidence to a human
+ * reviewer. They do not inspect image content or replace server validation.
  */
 export const trustConfig = {
   /** Max acceptable device-GPS accuracy radius before asking for review. */
@@ -26,10 +24,6 @@ export const trustConfig = {
   maxStreamSnapMeters: 150,
   /** Manual pin further than this from the EXIF position is flagged. */
   maxManualShiftMeters: 250,
-  /** AI results below this threshold need officer review. */
-  aiHighConfidence: 0.85,
-  /** Suggestions below this confidence are low-confidence, not medium. */
-  aiMediumConfidence: 0.6,
 }
 
 export const streamBasedTypes: Asset["type"][] = [
@@ -56,7 +50,14 @@ export interface TrustInput {
   manualShiftMeters?: number
   assetMatchAmbiguous?: boolean
   assetTypeConflict?: boolean
-  aiAssessment?: AiAssessment
+  assetSelection?:
+    | { kind: "new" }
+    | {
+        kind: "existing"
+        id: string
+        type: Asset["type"]
+        distanceMeters: number
+      }
   now?: Date
 }
 
@@ -90,6 +91,18 @@ export function assessTrust(input: TrustInput): TrustAssessment {
       severity: "critical",
       message: `Confirmed location is ${Math.round(input.manualShiftMeters)} m from the EXIF position.`,
     })
+  } else if (input.manualShiftMeters !== undefined) {
+    reasons.push({
+      code: "photo-location-match",
+      severity: "info",
+      message: `Confirmed point is ${Math.round(input.manualShiftMeters)} m from the photo's EXIF GPS.`,
+    })
+  } else if (input.location.source === "exif") {
+    reasons.push({
+      code: "photo-location-match",
+      severity: "info",
+      message: "Confirmed point uses GPS coordinates embedded in the photo.",
+    })
   }
 
   // 3. Compare calendar dates; EXIF capture times usually carry no timezone.
@@ -103,6 +116,12 @@ export function assessTrust(input: TrustInput): TrustAssessment {
         code: "timestamp-gap",
         severity: "warning",
         message: `Photo was taken ${gapDays} days from the inspection date.`,
+      })
+    } else if (gapDays !== undefined) {
+      reasons.push({
+        code: "timestamp-match",
+        severity: "info",
+        message: `Photo capture date is within ${trustConfig.maxPhotoAgeDays} days of the inspection date.`,
       })
     }
   } else {
@@ -123,6 +142,12 @@ export function assessTrust(input: TrustInput): TrustAssessment {
       severity: "warning",
       message: `GPS accuracy ±${Math.round(input.location.accuracyMeters)} m exceeds ${trustConfig.maxGpsAccuracyMeters} m.`,
     })
+  } else if (input.location.accuracyMeters !== undefined) {
+    reasons.push({
+    code: "gps-accuracy-good",
+    severity: "info",
+    message: `GPS accuracy ±${Math.round(input.location.accuracyMeters)} m is within ${trustConfig.maxGpsAccuracyMeters} m.`,
+    })
   }
 
   // 5. Duplicate image
@@ -134,6 +159,12 @@ export function assessTrust(input: TrustInput): TrustAssessment {
       code: "duplicate-image",
       severity: "critical",
       message: "The same image (SHA-256 match) was already submitted.",
+    })
+  } else if (input.imageSha256) {
+    reasons.push({
+      code: "image-unique",
+      severity: "info",
+      message: "No matching image SHA-256 was found in currently available observations.",
     })
   }
 
@@ -149,6 +180,12 @@ export function assessTrust(input: TrustInput): TrustAssessment {
       code: "watershed-mismatch",
       severity: "warning",
       message: `Location falls in ${input.containingWatershed.name}, not the selected watershed.`,
+    })
+  } else {
+    reasons.push({
+      code: "watershed-match",
+      severity: "info",
+      message: `Location is inside the selected watershed: ${input.containingWatershed.name}.`,
     })
   }
 
@@ -166,6 +203,12 @@ export function assessTrust(input: TrustInput): TrustAssessment {
         severity: "warning",
         message: `${input.assetType} is ${Math.round(input.snapDistanceMeters)} m from the nearest mapped stream.`,
       })
+    } else {
+      reasons.push({
+        code: "near-stream",
+        severity: "info",
+        message: `${input.assetType} is within ${trustConfig.maxStreamSnapMeters} m of the nearest mapped stream.`,
+      })
     }
   }
 
@@ -175,6 +218,19 @@ export function assessTrust(input: TrustInput): TrustAssessment {
       severity: "warning",
       message:
         "Multiple nearby assets of this type match the location; confirm the correct asset.",
+    })
+  }
+  if (input.assetSelection?.kind === "new") {
+    reasons.push({
+      code: "new-asset-selected",
+      severity: "info",
+      message: "Officer selected a new asset after reviewing nearby matches.",
+    })
+  } else if (input.assetSelection?.kind === "existing") {
+    reasons.push({
+      code: "existing-asset-selected",
+      severity: "info",
+      message: `Officer linked this observation to ${input.assetSelection.id} (${input.assetSelection.type}), ${Math.round(input.assetSelection.distanceMeters)} m away.`,
     })
   }
   if (input.assetTypeConflict) {
@@ -193,68 +249,7 @@ export function assessTrust(input: TrustInput): TrustAssessment {
     engine: "client-preview" as const,
   }
   const baseAssessment = withReasonStatus(assessment)
-  return applyAiAssessment(
-    baseAssessment,
-    input.aiAssessment,
-    input.assetType,
-    now,
-  )
-}
-
-export function applyAiAssessment(
-  assessment: TrustAssessment,
-  aiAssessment: AiAssessment | undefined,
-  declaredType: Asset["type"],
-  now = new Date(),
-): TrustAssessment {
-  const reasons = assessment.reasons.filter(
-    ({ code }) =>
-      code !== "not-a-watershed-asset" &&
-      code !== "low-confidence" &&
-      code !== "type-mismatch",
-  )
-  if (aiAssessment?.status === "ok" && aiAssessment.predictedClass) {
-    const predicted = aiAssessment.predictedClass
-    if (predicted === "not-a-watershed-asset") {
-      reasons.push({
-        code: "not-a-watershed-asset",
-        severity: "warning",
-        message:
-          "AI suggests this photo may not show a watershed asset. Confirm the image before submission.",
-      })
-    } else if (predicted !== "unclear" && predicted !== declaredType) {
-      reasons.push({
-        code: "type-mismatch",
-        severity: "warning",
-        message: `AI suggested ${predicted}, while the selected type is ${declaredType}.`,
-      })
-    }
-    const confidence = aiAssessment.confidence ?? 0
-    if (predicted === "unclear" || confidence < trustConfig.aiHighConfidence) {
-      reasons.push({
-        code: "low-confidence",
-        severity: "warning",
-        message:
-          predicted === "unclear"
-            ? "AI could not clearly identify a watershed asset; officer review is recommended."
-            : confidence < trustConfig.aiMediumConfidence
-              ? `AI confidence is low (${Math.round(confidence * 100)}%); officer review is recommended.`
-              : `AI confidence is medium (${Math.round(confidence * 100)}%); officer review is recommended.`,
-      })
-    }
-  }
-  const updated = withReasonStatus({
-    ...assessment,
-    reasons,
-    checkedAt: now.toISOString(),
-    engine:
-      aiAssessment?.status === "ok"
-        ? "ai-assisted"
-        : assessment.engine === "ai-assisted"
-          ? "client-preview"
-          : assessment.engine,
-  })
-  return updated
+  return baseAssessment
 }
 
 function withReasonStatus(assessment: TrustAssessment): TrustAssessment {

@@ -82,15 +82,6 @@ export function useHydroSnap() {
       void queryClient.invalidateQueries({ queryKey: ["observations"] })
     },
   })
-  const analyzePhoto = useMutation({
-    mutationFn: ({
-      image,
-      imageSha256,
-    }: {
-      image: Blob
-      imageSha256?: string
-    }) => hydrosnapService.analyzePhoto(image, imageSha256),
-  })
   const createAnalysis = useMutation({
     mutationFn: ({
       watershedId,
@@ -122,7 +113,6 @@ export function useHydroSnap() {
     reports: reportsQuery,
     saveObservation,
     verifyObservation,
-    analyzePhoto,
     createAnalysis,
     createReport,
   }

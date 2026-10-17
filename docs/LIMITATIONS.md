@@ -11,16 +11,15 @@
   and numbers). A separate Sentinel-2 pipeline test uses real scenes at a demo
   fixture coordinate; its indices are explicitly not a real asset result or
   impact evidence. Even verified satellite indicators are not proof of impact.
-- **Trust checks are client-side previews.** Rule checks and AI warning fusion
-  can be bypassed by a modified client; server-side evidence validation is
-  planned. Optional Gemini photo classification and summaries are suggestions,
-  not verification; AI reasons are warnings and the app never rejects a photo
-  automatically. Photo pixels are sent to Google's Gemini API after downscaling
-  and EXIF removal. AI endpoints require a server-side `GEMINI_API_KEY`.
-- **AI photo accuracy is not measured.** No labelled, licence-checked 40–60
-  image evaluation set is included yet. See
-  [`AI_EVALUATION.md`](AI_EVALUATION.md); do not treat the prototype model's
-  confidence as measured accuracy.
+- **Trust checks are client-side previews.** They can be bypassed by a modified
+  client; server-side evidence validation is planned. Photo verification uses
+  metadata/spatial rules only and does not classify image content. The officer
+  attestation is not independent verification. The optional Gemini pilot
+  summary is separate and does not inspect field photos.
+- **There is no custom photo classifier yet.** The repository contains no
+  trained model or labelled, licence-checked field-photo set. See
+  [`AI_EVALUATION.md`](AI_EVALUATION.md) for prerequisites; no image
+  classification accuracy is claimed.
 - **Streams are illustrative**, so the stream-distance check is only a demo of
   the logic.
 - **Roles are UI-level only** (the verify button is hidden for field officers);

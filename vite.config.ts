@@ -1,12 +1,10 @@
 import tailwindcss from "@tailwindcss/vite"
 import react from "@vitejs/plugin-react"
-import photoAnalysis from "./api/photo-analysis.ts"
 import pilotSummary from "./api/pilot-summary.ts"
 import { defineConfig, loadEnv } from "vite"
 import { fileURLToPath } from "node:url"
 
 const aiRoutes = new Map([
-  ["/api/photo-analysis", photoAnalysis],
   ["/api/pilot-summary", pilotSummary],
 ])
 
@@ -78,7 +76,7 @@ export default defineConfig(({ mode }) => {
   for (const name of [
     "GEMINI_API_KEY",
     "GEMINI_MODEL",
-    "PHOTO_AI_ALLOWED_ORIGINS",
+    "PILOT_SUMMARY_ALLOWED_ORIGINS",
   ]) {
     if (!process.env[name] && localEnv[name]) process.env[name] = localEnv[name]
   }

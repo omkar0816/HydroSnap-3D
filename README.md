@@ -8,18 +8,20 @@ boundaries + satellite indicators, built as an analytics/verification layer
 that could sit on top of SRISHTI-DRISHTI.
 
 > **Prototype status: frontend-first, demo data.** No general data backend or
-> database is connected yet; optional Vercel functions provide only the
-> Gemini-backed AI endpoints. Watershed boundaries, assets and NDVI/NDWI values
-> are illustrative and labelled **Demo** in the UI. See
+> database is connected yet; the optional Vercel function only generates
+> pilot-analysis summaries. Photo checks run locally as deterministic
+> metadata/spatial rules, not as an image-classification model. Watershed
+> boundaries, assets and NDVI/NDWI values are illustrative and labelled **Demo**
+> in the UI. See
 > [`docs/LIMITATIONS.md`](docs/LIMITATIONS.md).
 
 ## What's real and what is not
 
 | Real | Simulated | Planned |
 |---|---|---|
-| Browser-side image handling, EXIF parsing when present, device GPS, explicit location confirmation, and server-side Gemini suggestions when configured | Watershed boundaries, seeded assets and streams, dashboard index values, mock analysis-job lifecycle, and the pipeline fixture location | Production API/database, verified field-asset records, operational satellite monitoring, and authenticated roles |
+| Browser-side image handling, EXIF parsing when present, device GPS, explicit location confirmation, and local metadata/spatial checks | Watershed boundaries, seeded assets and streams, dashboard index values, mock analysis-job lifecycle, and the pipeline fixture location | Custom image-classification model, production API/database, verified field-asset records, operational satellite monitoring, and authenticated roles |
 | IndexedDB local queue and browser map rendering | Mock-mode sync, permissions, and role behavior | Hindi/Marathi interface and server-side trust checks |
-| Sentinel-2 scenes, browser-generated inspection PDFs, and optional AI-generated English/Hindi/Marathi pilot summaries | Sentinel-2 indices at the demo fixture are a pipeline test, not a real asset result; no labelled photo-evaluation set is bundled; AI translations have not been linguistically reviewed | Verified real-pilot comparisons, evaluated photo classification, reviewed translations, and a signed/server-verified report |
+| Sentinel-2 scenes, browser-generated inspection PDFs, and optional AI-generated English/Hindi/Marathi pilot summaries | Sentinel-2 indices at the demo fixture are a pipeline test, not a real asset result; no trained photo model or labelled photo-evaluation set is bundled; AI translations have not been linguistically reviewed | Verified real-pilot comparisons, a trained and evaluated photo classifier, reviewed translations, and a signed/server-verified report |
 
 The live build can change independently of this repository. Do not treat
 demo-coordinate analysis or illustrative records as evidence of watershed
@@ -40,13 +42,13 @@ No screenshots are included yet; see [`docs/screenshots/README.md`](docs/screens
 | Choropleth (mapped / verified / pending) with legend | ✅ |
 | Optional real boundaries via PMTiles (`VITE_WATERSHED_PMTILES_URL`) | ✅ code ready, no data bundled |
 | Upload: EXIF GPS/time/camera, device GPS or pin, **officer must confirm** | ✅ |
-| Advisory Gemini photo classification, warning-only trust fusion, and officer override reason | ✅ Vercel key required |
+| Local checks for photo GPS vs confirmed point, watershed containment, duplicates, capture date, GPS accuracy, and stream proximity; officer must attest to photo content | ✅ no image sent to an AI API |
 | Existing/new asset choice with an officer-confirmed nearby match | ✅ |
 | Asset Passport photo timeline, demo-fixture Sentinel-2 comparison, and AI summary in English/Hindi/Marathi | ✅ pipeline test; translations unreviewed |
 | Client-generated asset inspection PDF with map snapshot, audit details, and marked AI summary | ✅ prototype, not digitally signed |
 | Point-in-polygon → watershed auto-assigned; warning if outside all | ✅ |
 | Stream snap preview for check dams / percolation tanks (point never moved silently) | ✅ demo streams |
-| Rule + AI-assisted trust status (EXIF, time, GPS accuracy, SHA-256 duplicate, watershed, stream distance, content warnings) with reasons | ✅ client preview |
+| Rule-based data-check status with passed checks and attention items; photo content remains an officer decision | ✅ client preview |
 | Offline queue in IndexedDB, auto-sync on reconnect, backoff, idempotency key, "Sync now" | ✅ syncs to demo API in mock mode |
 | Role check: only GIS Analyst / Administrator can verify | ✅ UI-level |
 | Exports: assets GeoJSON / CSV, per-observation audit JSON | ✅ |
@@ -129,35 +131,20 @@ VITE_WATERSHED_ATTRIBUTION=
 Expected routes are listed in `docs/ARCHITECTURE.md`. Uploads are sent as
 `POST /api/v1/uploads` with an `Idempotency-Key` header.
 
-## AI prototype endpoints
+## Optional pilot-summary endpoint
 
-Vercel serverless functions provide same-origin `POST /api/photo-analysis` and
-`POST /api/pilot-summary`. Configure `GEMINI_API_KEY` in Vercel Project
-Settings → Environment Variables; it has **no `VITE_` prefix** and is never
-sent to the browser. `GEMINI_MODEL` defaults to `gemini-3.8-flash`.
-`PHOTO_AI_ALLOWED_ORIGINS` is an optional comma-separated list of additional
-allowed origins. `.env.example` documents the variable names only; never paste
-the key into source files or commit it. For local Vite development, put it in
-the git-ignored `.env.local` file and restart the dev server; the Vite development
-server routes `/api/*` to the same server-side handlers without exposing the
-key to the browser. Production deployments still require the key in Vercel
-Project Settings > Environment Variables.
+Only the optional `POST /api/pilot-summary` endpoint uses Gemini. Configure
+`GEMINI_API_KEY` in Vercel Project Settings → Environment Variables; it has no
+`VITE_` prefix and is never sent to the browser. Photo verification does not
+call that endpoint and does not require a Gemini key. The Vite development
+server routes the pilot-summary request to the same server-side handler.
 
-To run the labelled-photo evaluation, install dependencies and use
-`pnpm evaluate:photos -- --labels eval/labels.csv --photos eval/photos
---url http://localhost:8443 --out docs`. The runner requires licensed or
-consented photos and uses Sharp to apply the same 1024px JPEG preprocessing.
-It writes per-image results and a confusion table; it does not create or
-invent ground-truth labels.
-
-Photo checks send a browser-downscaled JPEG (longest edge 1024 px) and cache
-successful results by the original image SHA-256 in IndexedDB. Unavailable
-checks do not block saving; queued photos are retried at sync. This is an
-advisory prototype with per-function-instance rate limiting, not an
-authenticated production API. See [`docs/AI_EVALUATION.md`](docs/AI_EVALUATION.md)
-for the required labelled-photo evaluation; no accuracy is claimed until that
-evaluation is run. Photo pixels are sent to Google Gemini for classification;
-the downscaled image is generated in a canvas, which removes EXIF metadata.
+The photo workflow checks image metadata and compares the confirmed point with
+the loaded watershed and stream data. It does not classify image pixels or
+decide that a photo actually depicts a watershed asset. An officer must attest
+to the content; the saved record remains pending independent verification.
+See [`docs/AI_EVALUATION.md`](docs/AI_EVALUATION.md) for what is required before
+adding a custom visual classifier.
 
 ## Map and PWA
 
