@@ -74,11 +74,10 @@ function localAiApi() {
 export default defineConfig(({ mode }) => {
   const localEnv = loadEnv(mode, process.cwd(), "")
   for (const name of [
-    "GEMINI_API_KEY",
-    "GEMINI_MODEL",
     "OMNIROUTE_BASE_URL",
     "OMNIROUTE_API_KEY",
     "OMNIROUTE_MODEL",
+    "OMNIROUTE_VISION_MODEL",
     "PILOT_SUMMARY_ALLOWED_ORIGINS",
   ]) {
     if (!process.env[name] && localEnv[name]) process.env[name] = localEnv[name]

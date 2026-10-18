@@ -108,7 +108,7 @@ src/
     exporters.ts                  GeoJSON / CSV / audit JSON
     watershedStats.ts             per-watershed counts
 api/                              Vercel serverless AI routes
-server/                           shared server-only Gemini/request helpers
+server/                           shared server-only AI gateway/request helpers
   styles/hydrosnap-extensions.css styles for the new components
 scripts/prepare_watersheds/       real boundaries → PMTiles (Phase 1)
 docs/                             architecture, data sources, limitations, plan
@@ -133,10 +133,10 @@ Expected routes are listed in `docs/ARCHITECTURE.md`. Uploads are sent as
 
 ## Optional pilot-summary endpoint
 
-Only the optional `POST /api/pilot-summary` endpoint uses Gemini. Configure
-`GEMINI_API_KEY` in Vercel Project Settings → Environment Variables; it has no
+Only the optional `POST /api/pilot-summary` endpoint uses the configured AI gateway. Configure
+`OMNIROUTE_API_KEY` in Vercel Project Settings → Environment Variables; it has no
 `VITE_` prefix and is never sent to the browser. Photo verification does not
-call that endpoint and does not require a Gemini key. The Vite development
+call that endpoint and does not require an AI gateway key. The Vite development
 server routes the pilot-summary request to the same server-side handler.
 
 The photo workflow checks image metadata and compares the confirmed point with

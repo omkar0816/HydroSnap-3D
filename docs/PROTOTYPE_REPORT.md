@@ -42,7 +42,7 @@ Boundaries, streams, assets, NDVI/NDWI, sync target (mock), roles (no auth).
 
 The photo workflow uses local metadata and spatial checks and requires an
 officer content attestation; it does not classify photo pixels. The optional
-Gemini endpoint is used only for PilotAnalysis summaries. English/Hindi/Marathi
+endpoint using the configured AI gateway is used only for PilotAnalysis summaries. English/Hindi/Marathi
 summary translations still need speaker review. No custom visual model or
 labelled photo set is included. See [`AI_EVALUATION.md`](AI_EVALUATION.md) for
 the prerequisites for adding and evaluating one.

@@ -14,7 +14,7 @@ React 19 PWA (Vite, TS)
  ├─ src/utils/        geo (PIP, bounds, nearest stream), trust rules, exporters
  └─ src/services/mock/mockData.ts  DEMO watersheds, assets, streams, indices
 Vercel functions
- └─ /api/pilot-summary   optional Gemini multilingual summary from PilotAnalysis facts
+ └─ /api/pilot-summary   optional AI-gateway multilingual summary from PilotAnalysis facts
 ```
 
 | Capability | Where | Notes |
@@ -23,7 +23,7 @@ Vercel functions
 | Stream snap (stream-based assets) | `src/utils/geo.ts` → `nearestStreamPoint` | snapped point stored separately; original kept |
 | Evidence checks | `src/utils/trust.ts`, `src/components/evidence/TrustPanel.tsx` | local metadata/spatial checks; photo pixels are not classified; officer confirmation is persisted |
 | Offline sync | `src/services/offlineStore.ts`, `src/services/syncService.ts` | pending/syncing/synced/failed, exp. backoff 5 s → 5 min, Idempotency-Key |
-| Pilot summary | `api/pilot-summary.ts`, `src/services/aiService.ts` | optional server-only Gemini key; unrelated to photo verification |
+| Pilot summary | `api/pilot-summary.ts`, `src/services/aiService.ts` | optional server-only AI gateway key; unrelated to photo verification |
 | Real boundaries | `src/components/maps/WatershedMap.tsx` (`pmtiles://`) + `scripts/prepare_watersheds` | off until env var set |
 
 ## Planned (not built)
@@ -45,7 +45,7 @@ Vercel functions
 `GET/POST /reports`, `GET /users/me`, `GET /users/team`.
 
 The optional pilot-summary Vercel function is separate from that planned data
-API. It uses `GEMINI_API_KEY` (no `VITE_` prefix), validates same-origin
+API. It uses `OMNIROUTE_API_KEY` (no `VITE_` prefix), validates same-origin
 requests and bodies, and has a best-effort in-memory per-instance rate limit.
 It does not classify uploaded photos, persist observations, or replace the
 planned backend.

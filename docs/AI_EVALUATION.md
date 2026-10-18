@@ -9,8 +9,8 @@ accuracy, and proximity to mapped streams. An officer must inspect the pixels
 and attest that the photo shows the selected asset. These checks do not
 establish that a photo depicts a real watershed asset.
 
-No uploaded photo is sent to Gemini or another image-classification API.
-The separate, optional PilotAnalysis text summary still uses Gemini and does
+No uploaded photo is sent to the configured AI gateway or another image-classification API.
+The separate, optional PilotAnalysis text summary still uses the configured AI gateway and does
 not receive field photos.
 
 ## Before building a custom visual model

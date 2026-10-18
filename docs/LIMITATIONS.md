@@ -14,8 +14,8 @@
 - **Trust checks are client-side previews.** They can be bypassed by a modified
   client; server-side evidence validation is planned. Photo verification uses
   metadata/spatial rules only and does not classify image content. The officer
-  attestation is not independent verification. The optional Gemini pilot
-  summary is separate and does not inspect field photos.
+  attestation is not independent verification. The optional pilot summary using
+  the configured AI gateway is separate and does not inspect field photos.
 - **There is no custom photo classifier yet.** The repository contains no
   trained model or labelled, licence-checked field-photo set. See
   [`AI_EVALUATION.md`](AI_EVALUATION.md) for prerequisites; no image
