@@ -1,5 +1,5 @@
 import { z } from "zod"
-import { GeminiError, generateGeminiJson } from "../server/gemini.ts"
+import { generateJson } from "../server/llm.ts"
 import { checkRateLimit, readJson, validateOrigin } from "../server/request.ts"
 import {
   aiPilotSummaryTextSchema,
@@ -34,22 +34,18 @@ export default {
       })
     }
     try {
-      const { result, modelName } = await generateGeminiJson(
+      const rawResult = await generateJson(
         systemInstruction,
         `Summarize these supplied pilot facts only:\n${JSON.stringify(parsed.data)}`,
-        aiPilotSummaryTextSchema,
       )
-      return Response.json({ ...result, modelName })
+      const result = aiPilotSummaryTextSchema.parse(rawResult)
+      return Response.json({ ...result, modelName: process.env.OMNIROUTE_MODEL })
     } catch (error) {
-      if (error instanceof GeminiError) {
-        return Response.json(
-          { error: "AI pilot summary is unavailable.", code: error.code },
-          { status: error.status },
-        )
-      }
+      console.error("AI pilot summary failed:", error)
       return Response.json({ error: "AI pilot summary is unavailable." }, {
         status: 502,
       })
     }
   },
 }
+
