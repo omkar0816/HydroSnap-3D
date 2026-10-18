@@ -24,12 +24,12 @@ import { WatershedMap } from "@/components/maps/WatershedMap"
 import { useHydroSnap } from "@/hooks/useHydroSnap"
 import { TrustPanel } from "@/components/evidence/TrustPanel"
 import { findAssetCandidates } from "@/utils/assetMatch"
+import { distanceMeters, toGeoLocation } from "@/utils/geo"
 import {
-  distanceMeters,
-  findContainingWatershed,
-  nearestStreamPoint,
-  toGeoLocation,
-} from "@/utils/geo"
+  resolveWatershed,
+  snapToStream,
+  type StreamSnap,
+} from "@/services/spatialService"
 import { assessTrust, isStreamBased, sha256Hex } from "@/utils/trust"
 import { indiaDate, normalizeExifDateTime } from "@/utils/dates"
 import type {
@@ -37,9 +37,12 @@ import type {
   ExifSummary,
   FieldObservation,
   GeoLocation,
+  Watershed,
   WGS84Position,
 } from "@/types/domain"
 import type { FeatureCollection, LineStringGeometry } from "@/types/geojson"
+
+const EMPTY_WATERSHEDS: Watershed[] = []
 
 const formSchema = z.object({
   assetType: z.enum([
@@ -86,7 +89,12 @@ export function ImageUploadPage() {
   const [aiCheckPending, setAiCheckPending] = useState(false)
   const [aiOverrideReason, setAiOverrideReason] = useState("")
   const [watershedNote, setWatershedNote] = useState("")
+  const [containingWatershed, setContainingWatershed] = useState<Watershed>()
+  const [streamSnap, setStreamSnap] = useState<StreamSnap>()
+  const [watershedLookupPending, setWatershedLookupPending] = useState(false)
+  const [streamSnapPending, setStreamSnapPending] = useState(false)
   const assets = data.assets
+  const watershedRecords = watersheds.data ?? EMPTY_WATERSHEDS
   const streams = useMemo(() => {
     const layer = (data.layers.data ?? []).find(({ id }) => id === "streams")
     const geometry = layer?.geometry
@@ -128,28 +136,81 @@ export function ImageUploadPage() {
     confirmedLocation?.coordinates[1],
     watchedValues.assetType,
   ])
-  const chosenWatershed = (watersheds.data ?? []).find(
+  const chosenWatershed = watershedRecords.find(
     (item) => item.id === watchedValues.watershedId,
   )
-  // Point-in-polygon: which watershed contains the confirmed location?
-  const containingWatershed = useMemo(
-    () =>
-      confirmedLocation
-        ? findContainingWatershed(
-            confirmedLocation.coordinates,
-            watersheds.data ?? [],
+  useEffect(() => {
+    if (!confirmedLocation) {
+      setContainingWatershed(undefined)
+      setWatershedLookupPending(false)
+      return
+    }
+    let active = true
+    setContainingWatershed(undefined)
+    setWatershedLookupPending(true)
+    void resolveWatershed(confirmedLocation.coordinates, watershedRecords)
+      .then((watershed) => {
+        if (active) setContainingWatershed(watershed)
+      })
+      .catch((lookupError: unknown) => {
+        console.error(
+          "Could not resolve the confirmed location's watershed.",
+          lookupError,
+        )
+        if (active) {
+          setLocationError(
+            "Watershed lookup failed. You can still choose a watershed manually.",
           )
-        : undefined,
-    [confirmedLocation, watersheds.data],
-  )
-  // Stream snap preview (stream-based assets only; never moves the point).
-  const streamSnap = useMemo(
-    () =>
-      confirmedLocation && isStreamBased(watchedValues.assetType)
-        ? nearestStreamPoint(confirmedLocation.coordinates, streams)
-        : undefined,
-    [confirmedLocation, streams, watchedValues.assetType],
-  )
+        }
+      })
+      .finally(() => {
+        if (active) setWatershedLookupPending(false)
+      })
+    return () => {
+      active = false
+    }
+  }, [confirmedLocation, watershedRecords])
+  useEffect(() => {
+    if (!confirmedLocation || !isStreamBased(watchedValues.assetType)) {
+      setStreamSnap(undefined)
+      setStreamSnapPending(false)
+      return
+    }
+    let active = true
+    setStreamSnap(undefined)
+    setStreamSnapPending(true)
+    void snapToStream(
+      confirmedLocation.coordinates,
+      streams,
+      containingWatershed?.id ?? watchedValues.watershedId,
+    )
+      .then((snap) => {
+        if (active) setStreamSnap(snap)
+      })
+      .catch((snapError: unknown) => {
+        console.error(
+          "Could not snap the confirmed point to a stream.",
+          snapError,
+        )
+        if (active) {
+          setLocationError(
+            "Stream snap is unavailable; the confirmed point was not changed.",
+          )
+        }
+      })
+      .finally(() => {
+        if (active) setStreamSnapPending(false)
+      })
+    return () => {
+      active = false
+    }
+  }, [
+    confirmedLocation,
+    containingWatershed?.id,
+    streams,
+    watchedValues.assetType,
+    watchedValues.watershedId,
+  ])
   const trust = useMemo(() => {
     if (!confirmedLocation) return undefined
     return assessTrust({
@@ -411,6 +472,8 @@ export function ImageUploadPage() {
       )
     }
     setConfirmedLocation(candidateLocation)
+    setWatershedLookupPending(true)
+    setStreamSnapPending(isStreamBased(watchedValues.assetType))
     setLocationError("")
   }
 
@@ -493,6 +556,10 @@ export function ImageUploadPage() {
     }
     if (extracting) {
       setError("Wait for image metadata extraction to finish.")
+      return
+    }
+    if (watershedLookupPending || streamSnapPending) {
+      setError("Wait for the spatial checks to finish before saving.")
       return
     }
     if (!assetChoice) {

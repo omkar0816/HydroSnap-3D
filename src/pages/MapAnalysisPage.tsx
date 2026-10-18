@@ -28,11 +28,8 @@ import { DemoBadge } from "@/components/common/DemoBadge"
 import { MapTimeline } from "@/components/maps/MapTimeline"
 import { WatershedPanel } from "@/components/maps/WatershedPanel"
 import { downloadAssetsCsv, downloadAssetsGeoJson } from "@/utils/exporters"
-import {
-  findContainingWatershed,
-  geometryBounds,
-  type Bounds,
-} from "@/utils/geo"
+import { geometryBounds, type Bounds } from "@/utils/geo"
+import { resolveWatershed } from "@/services/spatialService"
 import { watershedStats } from "@/utils/watershedStats"
 import {
   assetsAsOf,
@@ -195,15 +192,26 @@ export function MapAnalysisPage() {
       ({ coords }) => {
         const position: [number, number] = [coords.longitude, coords.latitude]
         setFocusPosition(position)
-        const found = findContainingWatershed(position, watersheds)
-        if (found) {
-          openWatershed(found.id)
-          context?.notify(`You are inside ${found.name} (${found.code}).`)
-        } else {
-          context?.notify(
-            "Your location is outside every watershed loaded in this workspace.",
-          )
-        }
+        void resolveWatershed(position, watersheds)
+          .then((found) => {
+            if (found) {
+              openWatershed(found.id)
+              context?.notify(`You are inside ${found.name} (${found.code}).`)
+            } else {
+              context?.notify(
+                "Your location is outside every watershed loaded in this workspace.",
+              )
+            }
+          })
+          .catch((error: unknown) => {
+            console.error(
+              "Could not resolve the device location to a watershed.",
+              error,
+            )
+            context?.notify(
+              "Could not check which watershed contains your location.",
+            )
+          })
       },
       () => context?.notify("Could not determine your device location."),
       { enableHighAccuracy: true, timeout: 12000, maximumAge: 0 },
@@ -625,8 +633,8 @@ export function MapAnalysisPage() {
               {watershed?.district ?? "—"} district
             </div>
             <div className="map-data-warning">
-              <Activity size={13} /> ILLUSTRATIVE DATA · SAMPLE FEATURES · NDVI/NDWI
-              OVERLAYS SIMULATED
+              <Activity size={13} /> ILLUSTRATIVE DATA · SAMPLE FEATURES ·
+              NDVI/NDWI OVERLAYS SIMULATED
             </div>
           </div>
         </section>
