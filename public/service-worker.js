@@ -30,6 +30,8 @@ self.addEventListener("fetch", (event) => {
   ) {
     return
   }
+  // Map-tile proxy responses are large and live; never cache or intercept.
+  if (new URL(event.request.url).pathname.startsWith("/bhuvan-wms/")) return
   event.respondWith(
     (async () => {
       try {

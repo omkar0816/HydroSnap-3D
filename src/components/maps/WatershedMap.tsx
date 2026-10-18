@@ -6,6 +6,21 @@ import maplibregl, {
 import { Protocol } from "pmtiles"
 import { useNavigate } from "react-router-dom"
 import { env } from "@/config/env"
+import { bhuvanCatalog, bhuvanWmsBase } from "@/config/bhuvan"
+import { identifyBhuvanLayer } from "@/services/bhuvanService"
+import {
+  absoluteWmsBase,
+  bhuvanLayerIdFromUrl,
+  bhuvanSourceId,
+  bhuvanTileTemplate,
+  type BhuvanLayerState,
+} from "@/utils/bhuvanLayers"
+import {
+  CLOUDLESS_ATTRIBUTION,
+  CLOUDLESS_MAX_ZOOM,
+  cloudlessTileUrl,
+  cloudlessYearFor,
+} from "@/utils/imagery"
 import { boundsToCorners } from "@/utils/mapImage"
 import {
   boundsCenter,
@@ -64,6 +79,8 @@ interface WatershedMapProps {
   /** Date for historical satellite imagery; omitted to use current imagery. */
   imageryDate?: string
   pilotAnalysis?: PilotAnalysis | null
+  /** Bhuvan (NRSC/ISRO) thematic overlay visibility + opacity. */
+  bhuvan?: BhuvanLayerState
   onSelectAsset: (asset: Asset) => void
   onSelectWatershed?: (id: string, properties: Record<string, unknown>) => void
   onMapClick?: (position: WGS84Position) => void
@@ -105,8 +122,13 @@ export function mapFeatureId(feature: {
  * All three basemaps live in one style as raster layers; switching basemap
  * only toggles visibility, so the camera and overlays are preserved.
  */
+/**
+ * Historical imagery is the EOX Sentinel-2 *cloudless* annual mosaic (10 m,
+ * clearest pixels of a whole year) instead of NASA VIIRS daily scenes, which
+ * showed whatever clouds were present on the chosen day.
+ */
 function historicalImageryTiles(date: string): string {
-  return `https://gibs.earthdata.nasa.gov/wmts/epsg3857/best/VIIRS_SNPP_CorrectedReflectance_TrueColor/default/${date}/GoogleMapsCompatible_Level9/{z}/{y}/{x}.jpg`
+  return cloudlessTileUrl(cloudlessYearFor(date))
 }
 
 function baseStyle(
@@ -135,8 +157,8 @@ function baseStyle(
       ),
       "src-satellite-history": raster(
         historicalImageryTiles(imageryDate),
-        "NASA GIBS / VIIRS SNPP Corrected Reflectance (True Color)",
-        9,
+        CLOUDLESS_ATTRIBUTION,
+        CLOUDLESS_MAX_ZOOM,
       ),
       "src-terrain": raster(
         "https://tile.opentopomap.org/{z}/{x}/{y}.png",
@@ -245,6 +267,7 @@ export function WatershedMap({
   highlightAssetIds = [],
   imageryDate,
   pilotAnalysis,
+  bhuvan,
   onSelectAsset,
   onSelectWatershed,
   onMapClick,
@@ -264,6 +287,9 @@ export function WatershedMap({
     onMapReady,
   })
   const measureRef = useRef(measure)
+  const bhuvanRef = useRef(bhuvan)
+  const identifyAbort = useRef<AbortController | undefined>(undefined)
+  const identifyPopup = useRef<maplibregl.Popup | undefined>(undefined)
   const assetsRef = useRef(assets)
   const initialBasemap = useRef(basemap)
   const initialImageryDate = useRef(
@@ -271,6 +297,7 @@ export function WatershedMap({
   )
   const [measurePoints, setMeasurePoints] = useState<WGS84Position[]>([])
   const [mapLoaded, setMapLoaded] = useState(false)
+  const [failedBhuvan, setFailedBhuvan] = useState<string[]>([])
   const [threeDimensional, setThreeDimensional] = useState(false)
   const navigate = useNavigate()
   const assetData = useMemo(
@@ -306,6 +333,9 @@ export function WatershedMap({
   useEffect(() => {
     assetsRef.current = assets
   }, [assets])
+  useEffect(() => {
+    bhuvanRef.current = bhuvan
+  }, [bhuvan])
 
   // Create the map exactly once.
   useEffect(() => {
@@ -328,7 +358,60 @@ export function WatershedMap({
       new maplibregl.ScaleControl({ maxWidth: 120, unit: "metric" }),
       "bottom-left",
     )
+    async function identifyBhuvan(
+      target: MapLibreMap,
+      lngLat: maplibregl.LngLat,
+    ) {
+      const active = bhuvanCatalog
+        .filter((layer) => bhuvanRef.current?.visible[layer.id])
+        .slice(0, 3)
+      if (!active.length) return
+      identifyAbort.current?.abort()
+      const controller = new AbortController()
+      identifyAbort.current = controller
+      const base = absoluteWmsBase(bhuvanWmsBase, window.location.origin)
+      const results = (
+        await Promise.all(
+          active.map((layer) =>
+            identifyBhuvanLayer(
+              base,
+              layer,
+              lngLat.lng,
+              lngLat.lat,
+              target.getZoom(),
+              controller.signal,
+            ),
+          ),
+        )
+      ).filter((result) => result !== undefined)
+      if (controller.signal.aborted) return
+      identifyPopup.current?.remove()
+      const content = document.createElement("div")
+      content.className = "hs-identify"
+      if (!results.length) {
+        content.textContent = "No Bhuvan feature at this point."
+      }
+      for (const result of results) {
+        const title = document.createElement("strong")
+        title.textContent = result.layerLabel
+        content.appendChild(title)
+        const list = document.createElement("dl")
+        for (const [key, value] of Object.entries(result.properties)) {
+          const term = document.createElement("dt")
+          term.textContent = key
+          const detail = document.createElement("dd")
+          detail.textContent = value
+          list.append(term, detail)
+        }
+        content.appendChild(list)
+      }
+      identifyPopup.current = new maplibregl.Popup({ maxWidth: "300px" })
+        .setLngLat(lngLat)
+        .setDOMContent(content)
+        .addTo(target)
+    }
     map.on("load", () => {
+      addBhuvanLayers(map)
       addOfficialWatershedTiles(map)
       map.addSource("watersheds", {
         type: "geojson",
@@ -512,6 +595,7 @@ export function WatershedMap({
         }
         const hits = map.queryRenderedFeatures(event.point)
         if (hits.some((hit) => hit.layer.id === "asset-points")) return
+        void identifyBhuvan(map, event.lngLat)
         const watershedHit = hits.find(
           (hit) =>
             hit.layer.id === "watershed-fill" ||
@@ -534,11 +618,24 @@ export function WatershedMap({
         const center = map.getCenter()
         callbacks.current.onCenterChange?.([center.lng, center.lat])
       })
+      map.on("error", (event) => {
+        const failed = event.error as { url?: string } | undefined
+        const sourceId = (event as { sourceId?: string }).sourceId
+        const layerId = sourceId?.startsWith("bhuvan-")
+          ? sourceId.slice("bhuvan-".length)
+          : bhuvanLayerIdFromUrl(failed?.url, bhuvanCatalog)
+        if (!layerId) return
+        setFailedBhuvan((previous) =>
+          previous.includes(layerId) ? previous : [...previous, layerId],
+        )
+      })
       setMapLoaded(true)
       callbacks.current.onMapReady?.(map)
     })
     return () => {
       callbacks.current.onMapReady?.(null)
+      identifyAbort.current?.abort()
+      identifyPopup.current?.remove()
       labelMarkers.current.forEach((marker) => marker.remove())
       labelMarkers.current = []
       map.remove()
@@ -573,6 +670,30 @@ export function WatershedMap({
       basemap === "satellite" && imageryDate ? "visible" : "none",
     )
   }, [basemap, imageryDate, mapLoaded])
+
+  // Bhuvan thematic overlays: visibility + per-layer opacity.
+  useEffect(() => {
+    const map = mapRef.current
+    if (!map || !mapLoaded) return
+    for (const layer of bhuvanCatalog) {
+      const id = bhuvanSourceId(layer.id)
+      if (!map.getLayer(id)) continue
+      map.setLayoutProperty(
+        id,
+        "visibility",
+        bhuvan?.visible[layer.id] ? "visible" : "none",
+      )
+      map.setPaintProperty(
+        id,
+        "raster-opacity",
+        bhuvan?.opacity[layer.id] ?? layer.defaultOpacity,
+      )
+    }
+    // A layer switched off clears its warning; switching on retries it.
+    setFailedBhuvan((previous) =>
+      previous.filter((layerId) => bhuvan?.visible[layerId]),
+    )
+  }, [bhuvan, mapLoaded])
 
   // Watershed polygons + choropleth colours.
   useEffect(() => {
@@ -860,13 +981,62 @@ export function WatershedMap({
           </div>
         </div>
       )}
+      {basemap === "satellite" && (
+        <div className="hs-imagery-chip">
+          {imageryDate
+            ? `Sentinel-2 cloudless ${cloudlessYearFor(imageryDate)} · annual mosaic, cloud-free`
+            : "Esri World Imagery · current, cloud-free composite"}
+        </div>
+      )}
+      {failedBhuvan.length > 0 && (
+        <div className="hs-bhuvan-warning" role="status">
+          Bhuvan did not return tiles for{" "}
+          {failedBhuvan
+            .map(
+              (layerId) =>
+                bhuvanCatalog.find((layer) => layer.id === layerId)?.label ??
+                layerId,
+            )
+            .join(", ")}
+          . The server may be busy or the layer name may have changed.
+        </div>
+      )}
       <div className="map-attribution-note">
         {env.watershedPmtilesUrl
           ? "Watershed tiles: see the data sources documentation"
           : "Illustrative watershed boundaries · not official records"}
+        {bhuvan && Object.values(bhuvan.visible).some(Boolean)
+          ? " · Thematic layers © Bhuvan, NRSC/ISRO"
+          : ""}
       </div>
     </div>
   )
+}
+
+/**
+ * One hidden raster layer per Bhuvan catalogue entry, drawn above the
+ * basemaps and below watershed outlines, streams and field assets.
+ * Visibility/opacity are driven by the `bhuvan` prop.
+ */
+function addBhuvanLayers(map: MapLibreMap) {
+  const base = absoluteWmsBase(bhuvanWmsBase, window.location.origin)
+  for (const layer of bhuvanCatalog) {
+    const id = bhuvanSourceId(layer.id)
+    map.addSource(id, {
+      type: "raster",
+      tiles: [bhuvanTileTemplate(base, layer.wmsName)],
+      tileSize: 256,
+      bounds: layer.bounds,
+      attribution: "Thematic data: Bhuvan, NRSC/ISRO",
+    })
+    map.addLayer({
+      id,
+      type: "raster",
+      source: id,
+      layout: { visibility: "none" },
+      paint: { "raster-opacity": layer.defaultOpacity },
+    })
+  }
 }
 
 /**

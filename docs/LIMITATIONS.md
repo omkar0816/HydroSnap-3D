@@ -1,9 +1,10 @@
 # Limitations (be upfront with judges)
 
-- **No general data backend yet.** `VITE_USE_MOCK_API=true`; observations and
-  records still live in the browser. "Synced" records in mock mode reached
-  only the in-browser demo API. Vercel functions provide only the optional AI
-  endpoints.
+- **Backend is local-development only.** Express + PostgreSQL/PostGIS run via
+  Docker Compose, and `VITE_USE_MOCK_API=true` remains the default. The local
+  database is seeded with illustrative demo records; mock-mode sync still
+  reaches only the in-browser demo API. The backend has no authentication,
+  authorization, managed object storage, or production deployment configuration.
 - **Demo boundaries.** The three watersheds are hand-drawn shapes, not official
   SLUSI / CWC records. Real boundaries need `scripts/prepare_watersheds` + a
   licence-checked dataset.
@@ -20,14 +21,23 @@
   trained model or labelled, licence-checked field-photo set. See
   [`AI_EVALUATION.md`](AI_EVALUATION.md) for prerequisites; no image
   classification accuracy is claimed.
+- **Server-side upload validation is limited.** The API verifies image bytes,
+  their declared hash, and request geometry, but does not run the full client
+  trust policy or independently attest to photo contents.
 - **Streams are illustrative**, so the stream-distance check is only a demo of
   the logic.
-- **Roles are UI-level only** (the verify button is hidden for field officers);
-  there is no authentication.
+- **Roles are not authenticated.** The verify button is hidden for field
+  officers in the UI, and the backend's example current-user/team responses
+  are illustrative; there is no authentication or authorization.
+- **Database demos are not official data.** Seeded boundaries, streams,
+  assets, and satellite values are illustrative. Import only datasets whose
+  source, licence, and attribution have been verified.
 - **Map tiles are not cached offline**; the upload form works offline, the map
   needs network.
-- **Image stored as data URL in IndexedDB**: fine for a demo, heavy for many
-  photos. Planned: blob storage + server upload.
+- **Photo storage is local to the API host.** IndexedDB keeps offline images;
+  synced images are decoded to files under `storage/uploads/` and the database
+  stores only a relative path and hash. Production blob storage and retention
+  controls are not included.
 - **English application UI.** The pilot summary endpoint can return English,
   Hindi, and Marathi text, but those AI-generated translations are not yet
   human-reviewed and are not a Hindi/Marathi interface.

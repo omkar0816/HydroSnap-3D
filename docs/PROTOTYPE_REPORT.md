@@ -47,6 +47,14 @@ summary translations still need speaker review. No custom visual model or
 labelled photo set is included. See [`AI_EVALUATION.md`](AI_EVALUATION.md) for
 the prerequisites for adding and evaluating one.
 
-## Next step
-Phase 2 backend: FastAPI + PostGIS via docker compose implementing the routes
-in `ARCHITECTURE.md`, then flip `VITE_USE_MOCK_API=false`.
+## Local PostGIS backend
+Express + PostgreSQL/PostGIS are available for local development through
+Docker Compose. The API applies a SQL migration, seeds the existing
+illustrative records, persists API records, and exposes PostGIS watershed
+lookup and nearest-stream operations. Photo bytes are stored under
+`storage/uploads/`; the database keeps their relative paths and hashes.
+
+**Still not implemented:** production authentication/authorization, object
+storage, stream/watershed import tooling, and satellite-analysis workers.
+Configure `VITE_USE_MOCK_API=false` after starting the local backend. Seeded
+records are illustrative and are not replacements for licensed, verified data.

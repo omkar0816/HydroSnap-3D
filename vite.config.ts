@@ -79,6 +79,7 @@ export default defineConfig(({ mode }) => {
     "OMNIROUTE_MODEL",
     "OMNIROUTE_VISION_MODEL",
     "PILOT_SUMMARY_ALLOWED_ORIGINS",
+    "BHUVAN_PROXY_TARGET",
   ]) {
     if (!process.env[name] && localEnv[name]) process.env[name] = localEnv[name]
   }
@@ -89,6 +90,19 @@ export default defineConfig(({ mode }) => {
       host: "0.0.0.0",
       port: Number(process.env.PORT ?? 8443),
       strictPort: true,
+      proxy: {
+        // Bhuvan does not advertise CORS support for browsers, so the app calls
+        // this same-origin path and Vite forwards it. Production equivalent: the rewrite in vercel.json.
+        "/bhuvan-wms": {
+          target:
+            process.env.BHUVAN_PROXY_TARGET ??
+            "https://bhuvan-vec2.nrsc.gov.in",
+          changeOrigin: true,
+          // Some Indian government hosts ship incomplete TLS chains; dev only.
+          secure: false,
+          rewrite: (path: string) => path.replace(/^\/bhuvan-wms/, "/bhuvan"),
+        },
+      },
     },
     resolve: {
       alias: {

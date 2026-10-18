@@ -242,10 +242,11 @@ export function MapTimeline({
         )}
         <div className="hs-timeline-note">
           The current satellite view uses high-resolution Esri imagery.
-          Selecting a historical date switches to NASA VIIRS true-color
-          imagery (approximately 500 m resolution), which has less detail and
-          may look pixelated when zoomed in. Historical imagery is available
-          only for dates covered by the archive.
+          Selecting a historical date switches to the Sentinel-2 cloudless
+          annual mosaic (10 m resolution, clearest pixels of the whole year,
+          so no clouds). Mosaics are yearly, so the two half-year steps of
+          one year can show the same picture; each step shows the latest
+          complete year before it.
         </div>
       </div>
     </div>
