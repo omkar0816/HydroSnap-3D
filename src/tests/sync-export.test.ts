@@ -44,6 +44,12 @@ describe("sync backoff", () => {
       officerId: "officer-test",
       officerName: "Test Officer",
       verificationStatus: "Pending review",
+      photoContentReview: {
+        status: "officer-confirmed",
+        officerId: "officer-test",
+        officerName: "Test Officer",
+        confirmedAt: "2026-10-01T00:00:00.000Z",
+      },
       createdAt: "2026-10-01T00:00:00.000Z",
       auditHistory: [],
     }
@@ -58,12 +64,17 @@ describe("sync backoff", () => {
         },
       ],
     }
-    const saved = { ...original, imageDataUrl: undefined }
+    const saved = {
+      ...original,
+      imageDataUrl: undefined,
+      photoContentReview: undefined,
+    }
 
     const merged = mergeUploadedObservation(original, current, saved)
 
     expect(merged.verificationStatus).toBe("Verified")
     expect(merged.auditHistory).toEqual(current.auditHistory)
+    expect(merged.photoContentReview).toEqual(original.photoContentReview)
   })
 })
 

@@ -7,7 +7,7 @@ export function validateOrigin(request: Request): Response | undefined {
   if (!origin) {
     return Response.json({ error: "Origin is required." }, { status: 403 })
   }
-  const allowedOrigins = (process.env.PHOTO_AI_ALLOWED_ORIGINS ?? "")
+  const allowedOrigins = (process.env.PILOT_SUMMARY_ALLOWED_ORIGINS ?? "")
     .split(",")
     .map((item) => item.trim())
     .filter(Boolean)

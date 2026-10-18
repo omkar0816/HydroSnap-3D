@@ -1,44 +1,4 @@
 import { z } from "zod"
-import { aiAssetLabels } from "../types/domain.ts"
-
-export const aiPhotoAttributesSchema = z
-  .object({
-    visibleWater: z.boolean().nullable(),
-    visibleStructure: z.boolean().nullable(),
-    vegetation: z.enum(["none", "sparse", "dense", "unclear"]),
-    evidence: z.string().max(300),
-  })
-  .strict()
-
-export const aiPhotoResultSchema = z
-  .object({
-    predictedClass: z.enum(aiAssetLabels),
-    confidence: z.number().min(0).max(1),
-    attributes: aiPhotoAttributesSchema,
-  })
-  .strict()
-
-const successfulAssessmentSchema = z
-  .object({
-    status: z.literal("ok"),
-    predictedClass: z.enum(aiAssetLabels),
-    confidence: z.number().min(0).max(1),
-    attributes: aiPhotoAttributesSchema,
-    modelName: z.string(),
-    checkedAt: z.string(),
-  })
-  .strict()
-
-export const cachedAiAssessmentSchema = z.discriminatedUnion("status", [
-  successfulAssessmentSchema,
-  z
-    .object({
-      status: z.literal("unavailable"),
-      modelName: z.string(),
-      checkedAt: z.string(),
-    })
-    .strict(),
-])
 
 const summarySceneSchema = z
   .object({

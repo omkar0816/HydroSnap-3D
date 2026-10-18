@@ -14,8 +14,7 @@ React 19 PWA (Vite, TS)
  ├─ src/utils/        geo (PIP, bounds, nearest stream), trust rules, exporters
  └─ src/services/mock/mockData.ts  DEMO watersheds, assets, streams, indices
 Vercel functions
- ├─ /api/photo-analysis  Gemini closed-label photo suggestion
- └─ /api/pilot-summary   Gemini multilingual summary from PilotAnalysis facts
+ └─ /api/pilot-summary   optional AI-gateway multilingual summary from PilotAnalysis facts
 Express + TypeScript + PostgreSQL/PostGIS (local Docker Compose)
  ├─ /api/v1/*             domain API consumed by hydrosnapService
  ├─ JSONB payloads        preserve the frontend domain shapes
@@ -27,9 +26,9 @@ Express + TypeScript + PostgreSQL/PostGIS (local Docker Compose)
 |---|---|---|
 | Point-in-watershed at upload | `src/services/spatialService.ts` → PostGIS `ST_Covers`; mock/offline uses `src/utils/geo.ts` | smallest overlapping watershed wins; boundary points count as inside |
 | Stream snap (stream-based assets) | `src/services/spatialService.ts` → PostGIS geography `ST_DWithin` / `ST_ClosestPoint`; mock/offline uses `src/utils/geo.ts` | snapped point stored separately; original confirmed location kept |
-| Trust status | `src/utils/trust.ts` | client rules + advisory AI warning fusion; "Flagged" = human review, never auto-reject |
+| Evidence checks | `src/utils/trust.ts`, `src/components/evidence/TrustPanel.tsx` | local metadata/spatial checks; photo pixels are not classified; officer confirmation is persisted |
 | Offline sync | `src/services/offlineStore.ts`, `src/services/syncService.ts` | pending/syncing/synced/failed, exp. backoff 5 s → 5 min, Idempotency-Key |
-| AI suggestions | `api/photo-analysis.ts`, `api/pilot-summary.ts`, `src/services/aiService.ts` | server-only Gemini key; offline photos retry at sync; responses validated with Zod |
+| Pilot summary | `api/pilot-summary.ts`, `src/services/aiService.ts` | optional server-only AI gateway key; unrelated to photo verification |
 | Real boundaries | `src/components/maps/WatershedMap.tsx` (`pmtiles://`) + `scripts/prepare_watersheds` | off until env var set |
 
 ## Planned (not built)
@@ -54,18 +53,18 @@ and `GET /satellite/timeline`. Spatial endpoints:
 `pnpm db:setup` seeds illustrative demo data; imported real boundaries and
 streams must have verified provenance and licence information.
 
-The two Vercel AI functions are separate from the data API. They use
-`GEMINI_API_KEY` (no `VITE_` prefix), validate same-origin requests and bodies,
-and have a best-effort in-memory per-instance rate limit. They do not persist
-observations or replace the local backend.
+The optional pilot-summary Vercel function is separate from that planned data
+API. It uses `OMNIROUTE_API_KEY` (no `VITE_` prefix), validates same-origin
+requests and bodies, and has a best-effort in-memory per-instance rate limit.
+It does not classify uploaded photos, persist observations, or replace the
+local backend.
 
 ## Corrected app flow
 
 ```mermaid
 flowchart TD
   A[Field officer takes / uploads photo] --> B[Read EXIF: GPS, time, camera + SHA-256]
-  B --> B3[Optional Gemini photo suggestion; offline retry at sync]
-  B3 --> C{GPS in EXIF?}
+  B --> C{GPS in EXIF?}
   C -- yes --> D[Show coordinates]
   C -- no --> D2[Device GPS or manual pin]
   D --> E[Officer confirms location]
@@ -74,9 +73,11 @@ flowchart TD
   F --> G{Asset type}
   G -- stream-based: check dam, percolation tank --> H[Distance / snap to nearest stream]
   G -- area-based: farm pond, plantation --> H2[Containment + slope plausibility*]
-  H --> I[Rules + advisory AI warnings → trust reasons]
+  H --> I[Metadata and spatial rules → passed and attention checks]
   H2 --> I
-  I --> J[Save to IndexedDB queue]
+  I --> I2{Officer confirms image content?}
+  I2 -- no --> I3[Do not save]
+  I2 -- yes --> J[Save evidence and confirmation to IndexedDB queue]
   J --> K{Online?}
   K -- no --> J
   K -- yes --> L[Sync with Idempotency-Key, retry + backoff]

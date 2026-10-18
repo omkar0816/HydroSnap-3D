@@ -1,5 +1,5 @@
 import { z } from "zod"
-import { GeminiError, generateGeminiJson } from "../server/gemini.ts"
+import { generateJson, LlmError, type LlmErrorCode } from "../server/llm.ts"
 import { checkRateLimit, readJson, validateOrigin } from "../server/request.ts"
 import {
   aiPilotSummaryTextSchema,
@@ -15,6 +15,14 @@ const systemInstruction = [
   "Return three faithful, plain-language versions in English, Hindi, and Marathi in the requested JSON shape.",
   "Clearly describe this as a pipeline test, not a real asset result. Avoid stronger claims than the input supports.",
 ].join(" ")
+
+const statusMap: Record<LlmErrorCode, number> = {
+  "not-configured": 503,
+  "rate-limited": 429,
+  "timeout": 504,
+  "upstream-error": 502,
+  "invalid-response": 502,
+}
 
 export default {
   async fetch(request: Request): Promise<Response> {
@@ -34,22 +42,25 @@ export default {
       })
     }
     try {
-      const { result, modelName } = await generateGeminiJson(
+      const { result: rawResult, modelUsed } = await generateJson(
         systemInstruction,
         `Summarize these supplied pilot facts only:\n${JSON.stringify(parsed.data)}`,
-        aiPilotSummaryTextSchema,
       )
-      return Response.json({ ...result, modelName })
+      const result = aiPilotSummaryTextSchema.parse(rawResult)
+      return Response.json({ ...result, modelName: modelUsed })
     } catch (error) {
-      if (error instanceof GeminiError) {
-        return Response.json(
-          { error: "AI pilot summary is unavailable.", code: error.code },
-          { status: error.status },
-        )
+      if (error instanceof LlmError) {
+        const status = statusMap[error.code] ?? 502
+        return Response.json({ error: "AI pilot summary is unavailable." }, { status })
       }
+      if (error instanceof z.ZodError) {
+        return Response.json({ error: "AI pilot summary is unavailable." }, { status: 502 })
+      }
+      console.error("AI pilot summary failed:", error)
       return Response.json({ error: "AI pilot summary is unavailable." }, {
         status: 502,
       })
     }
   },
 }
+

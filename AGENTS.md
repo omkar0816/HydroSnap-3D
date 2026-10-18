@@ -1,46 +1,74 @@
-# figma-make-app
+# HydroSnap 3D
 
-React + Vite + Tailwind CSS project running inside Figma Make.
+HydroSnap 3D is a watershed field-evidence and monitoring prototype for SIH 2026 (`SIH26015`) under DoLR, Ministry of Rural Development. It is a frontend-first demo application for geo-coded field photos, watershed boundaries, and satellite indicators, intended to sit above a future SRISHTI-DRISHTI workflow.
 
-## Development Server
+## Product reality
 
-A Vite development server is **already running** on `$PORT` (default 8443). You don't need to start it manually.
+- This is a prototype, not a production monitoring system.
+- The demo data is illustrative and labelled as `Demo` in the UI.
+- No general backend or database is connected yet.
+- Photo checks are local metadata/spatial rule checks; they are not AI image-classification decisions.
+- Watershed boundaries, seeded assets, stream datasets, and dashboard summary values are demo-only.
+- The app may optionally call the Vercel pilot-summary endpoint for generated summaries, but that is not a trusted operational decision layer.
 
-- Preview URL: The user can access the running app through the preview panel
-- Hot reload: Changes to source files are reflected immediately
+## Core architectural rules
 
-## Project Structure
+- Keep all data access behind the `src/services/` layer; do not fetch from UI components directly.
+- Coordinates are WGS84 `[lon, lat]`.
+- Never silently correct or alter a user-confirmed location.
+- No secrets or private keys should be shipped to the frontend.
+- The app should behave as a demo evidence workflow, not as proof of watershed impact.
+- The UI must keep officer confirmation steps explicit before accepting or verifying a photo or asset record.
 
-This is the canonical project structure. Start with task-relevant files below. Only follow imports or inspect other files when required, when a documented path is missing, or when the repository contradicts this guide.
+## Local development
 
-- `src/main.tsx` - React entrypoint; imports global styles and mounts `src/App.tsx` into the `#root` element
-- `src/App.tsx` - Routes and application-level state
-- `src/index.css` - Global styles and Tailwind CSS v4 import
-- `src/pages/` - Dashboard, map analysis, upload, and workspace routes
-- `src/components/` - Shared layout, map, evidence, sync, and common UI
-- `src/services/` - API, offline queue, synchronization, and mock data
-- `src/types/`, `src/utils/`, `src/hooks/`, `src/config/` - Domain types and application modules
-- `index.html` - Vite HTML shell containing the `#root` element and loading `/src/main.tsx`
-- `public/` - PWA manifest, icon, and service worker
-- `package.json` - Project dependencies and the Vite build, development, preview, and formatting scripts
-- `vite.config.ts` - Vite configuration with React, Tailwind CSS v4, and Figma Make plugins plus the `@` alias for `src`
-- `mise.toml` - Toolchain versions for Node.js and pnpm
+Requirements: Node.js 22 and pnpm 10.34.3 (`mise.toml`).
 
-## Dependencies
+```sh
+pnpm install
+cp .env.example .env.local   # optional; defaults to the demo API
+pnpm dev                     # http://localhost:8443 (or configured PORT)
+```
 
-- Runtime: React 19 and React DOM 19
-- Styling: Tailwind CSS v4 with the `@tailwindcss/vite` plugin
-- Build tooling: Vite 8, TypeScript 5.7, and `@vitejs/plugin-react`
-- Formatting: oxfmt
+Validation commands:
 
-## Styling
+```sh
+pnpm typecheck
+pnpm test
+pnpm build
+pnpm check
+```
 
-This project uses **Tailwind CSS v4** through the `@tailwindcss/vite` plugin configured in `vite.config.ts`. `src/index.css` imports Tailwind with `@import 'tailwindcss';`. Use Tailwind utility classes directly in JSX and put global CSS or Tailwind v4 theme customization in `src/index.css`. This scaffold does not need a Tailwind config file or PostCSS config.
+## Project structure
 
-`src/main.tsx` imports `src/index.css`, so global font wiring belongs in `src/index.css`. Keep CSS `@import` statements first, then add any `@font-face` rules and font-family defaults there.
+- `src/App.tsx` and `src/main.tsx` — app shell and entry point
+- `src/index.css` — global styles and Tailwind v4 import
+- `src/pages/` — dashboard, map, upload, and workspace routes
+- `src/components/` — shared layout, maps, evidence, and sync UI
+- `src/services/` — API client, mock data, offline queue, sync logic
+- `src/utils/` — geo, trust, export, and watershed utility code
+- `src/types/` — domain and GeoJSON types
+- `src/tests/` — geo, trust, sync, and export tests
+- `api/` — Vercel serverless routes
+- `server/` — shared server-side helpers
+- `docs/` — architecture, limitations, evaluation, and planning docs
+- `public/` — PWA assets and service worker
 
-## Code quality
+## Styling and code quality
 
-- Use double quotes for strings containing apostrophes (`"We're here to help"`), or escape them in single-quoted strings. An unescaped apostrophe in a single-quoted string breaks the build.
-- Ensure JSX tags are closed and braces are balanced.
+- This project uses React + Vite + Tailwind CSS v4.
+- Keep styles in JSX using Tailwind utilities and only add global CSS when necessary in `src/index.css`.
+- Import order in CSS should keep `@import 'tailwindcss';` first, followed by any custom rules.
+- Use double quotes for strings containing apostrophes when needed.
+- Ensure JSX is properly closed and balanced.
 - Export components as default exports.
+
+## Important domain context
+
+- Map and watershed logic are demo-first, but the app supports real-boundary PMTiles when configured via `VITE_WATERSHED_PMTILES_URL`.
+- Upload validation includes EXIF GPS/time/camera checks, confirmed location, watershed containment, duplicate detection, date validation, GPS accuracy, and stream proximity checks.
+- Offline queueing and retry logic are handled in IndexedDB with sync backoff and idempotency.
+- Role checks are UI-level only and should not be treated as real authorization enforcement.
+- Photo verification remains a human officer decision; the app records a pending status rather than asserting a verified asset condition.
+
+Use this repository context when making changes: the goal is to improve the demo prototype workflow without treating demo evidence as production truth.

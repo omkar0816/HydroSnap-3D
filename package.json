@@ -13,7 +13,6 @@
     "db:setup": "tsx scripts/db-setup.ts",
     "build": "vite build",
     "preview": "vite preview",
-    "evaluate:photos": "node scripts/evaluate_photos.mjs",
     "format": "oxfmt",
     "typecheck": "tsc --noEmit",
     "test": "vitest run",

@@ -36,6 +36,7 @@ import type {
   FieldObservation,
   Intervention,
   Report,
+  Watershed,
 } from "@/types/domain"
 
 type Section = "watersheds" | "watershed-detail" | "layers" | "analytics" | "evidence" | "interventions" | "reports" | "administration" | "settings"
@@ -378,6 +379,7 @@ export function WorkspacePage({ section }: { section: Section }) {
           <AssetTable
             assets={assets}
             observations={data.observations.data ?? []}
+            watersheds={watersheds}
             canVerify={
               data.currentUser.data?.role === "GIS Analyst" ||
               data.currentUser.data?.role === "Administrator"
@@ -429,6 +431,7 @@ export function WorkspacePage({ section }: { section: Section }) {
           <AssetTable
             assets={filteredAssets}
             observations={data.observations.data ?? []}
+            watersheds={watersheds}
             canVerify={
               data.currentUser.data?.role === "GIS Analyst" ||
               data.currentUser.data?.role === "Administrator"
@@ -967,11 +970,13 @@ export function WorkspacePage({ section }: { section: Section }) {
 function AssetTable({
   assets,
   observations,
+  watersheds,
   canVerify,
   onVerify,
 }: {
   assets: Asset[]
   observations: FieldObservation[]
+  watersheds: Watershed[]
   /** Only GIS Analysts and Administrators may verify (role preview). */
   canVerify: boolean
   onVerify: (asset: Asset) => void
@@ -1112,6 +1117,19 @@ function AssetTable({
                 trust={observation.trust}
                 imageHash={observation.imageSha256}
                 snapDistanceMeters={observation.snapDistanceMeters}
+                location={observation.location}
+                watershedName={
+                  watersheds.find(({ id }) => id === observation.watershedId)
+                    ?.name
+                }
+                watershedIsDemo={
+                  watersheds.find(({ id }) => id === observation.watershedId)
+                    ?.demo
+                }
+                photoContentConfirmed={
+                  observation.photoContentReview?.status ===
+                  "officer-confirmed"
+                }
               />
               <div className="hs-audit">
                 <strong>Audit trail</strong>

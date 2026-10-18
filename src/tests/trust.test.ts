@@ -29,6 +29,32 @@ describe("assessTrust", () => {
     expect(assessTrust(base).status).toBe("Consistent")
   })
 
+  it("reports a positive watershed match for a point inside the selected boundary", () => {
+    const result = assessTrust(base)
+    expect(result.reasons).toContainEqual(
+      expect.objectContaining({
+        code: "watershed-match",
+        severity: "info",
+      }),
+    )
+  })
+
+  it("reports when the confirmed location differs from photo GPS", () => {
+    const result = assessTrust({ ...base, manualShiftMeters: 120 })
+    expect(result.reasons).toContainEqual(
+      expect.objectContaining({
+        code: "photo-location-match",
+        message: expect.stringContaining("120 m"),
+      }),
+    )
+
+    const mismatch = assessTrust({ ...base, manualShiftMeters: 300 })
+    expect(mismatch.status).toBe("Flagged")
+    expect(mismatch.reasons.map(({ code }) => code)).toContain(
+      "manual-shift-large",
+    )
+  })
+
   it("flags duplicates and points outside watersheds", () => {
     expect(
       assessTrust({

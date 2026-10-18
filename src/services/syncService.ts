@@ -1,15 +1,11 @@
 import { env } from "@/config/env"
 import { apiRequest } from "@/services/apiClient"
-import { analyzePhoto } from "@/services/aiService"
 import {
   listQueue,
   recoverInterruptedSync,
   updateQueued,
 } from "@/services/offlineStore"
 import type { FieldObservation, QueuedObservation } from "@/types/domain"
-import { applyAiAssessment } from "@/utils/trust"
-import { dataUrlToBlob } from "@/utils/photo"
-import { sha256Hex } from "@/utils/trust"
 
 /**
  * Offline → online sync for field observations.
@@ -45,6 +41,9 @@ export function mergeUploadedObservation(
   return {
     ...original,
     ...saved,
+    ...(!saved.photoContentReview
+      ? { photoContentReview: original.photoContentReview }
+      : {}),
     ...(verificationChanged
       ? {
           verificationStatus: current.verificationStatus,
@@ -106,61 +105,6 @@ async function upload(
   })
 }
 
-async function preparePhotoAssessment(
-  id: string,
-  observation: FieldObservation,
-): Promise<FieldObservation> {
-  if (!observation.imageDataUrl || observation.aiAssessment?.status === "ok") {
-    return observation
-  }
-
-  try {
-    const image = await dataUrlToBlob(observation.imageDataUrl)
-    const imageSha256 = observation.imageSha256 ?? (await sha256Hex(image))
-    const aiAssessment = await analyzePhoto(image, imageSha256)
-    let trust = observation.trust
-    if (trust) {
-      trust = applyAiAssessment(trust, aiAssessment, observation.assetType)
-    } else if (aiAssessment.status === "ok") {
-      trust = applyAiAssessment(
-        {
-          status: "Consistent",
-          reasons: [],
-          checkedAt: new Date().toISOString(),
-          engine: "client-preview",
-        },
-        aiAssessment,
-        observation.assetType,
-      )
-    }
-    const updated: FieldObservation = {
-      ...observation,
-      imageSha256,
-      aiAssessment,
-      trust,
-      ...(aiAssessment.status === "ok"
-        ? {
-            auditHistory: [
-              ...observation.auditHistory,
-              {
-                action: `AI suggested ${aiAssessment.predictedClass}; recorded type ${observation.assetType} remains pending officer review (checked during sync).`,
-                actor: `AI photo assessment (${aiAssessment.modelName ?? "Gemini"})`,
-                timestamp: aiAssessment.checkedAt,
-              },
-            ],
-          }
-        : {}),
-    }
-    await updateQueued(id, (latest) =>
-      latest ? { ...latest, observation: updated } : latest,
-    )
-    return updated
-  } catch (error) {
-    console.warn("Queued photo could not be assessed during sync.", error)
-    return observation
-  }
-}
-
 /**
  * Uploads every due record. `force` ignores the backoff window (used by the
  * "Sync now" button).
@@ -191,13 +135,9 @@ export function syncNow(force = false): Promise<SyncSummary> {
 
       summary.attempted++
       await emit(true)
-      let syncObservation = await preparePhotoAssessment(
-        record.id,
-        current.observation,
-      )
       let saved: FieldObservation
       try {
-        saved = await upload(syncObservation)
+        saved = await upload(current.observation)
       } catch (error) {
         const updated = await updateQueued(record.id, (latest) => {
           if (!latest) return latest
@@ -221,7 +161,7 @@ export function syncNow(force = false): Promise<SyncSummary> {
         return {
           ...latest,
           observation: mergeUploadedObservation(
-            syncObservation,
+            current.observation,
             latest.observation,
             saved,
           ),
