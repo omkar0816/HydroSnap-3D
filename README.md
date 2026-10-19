@@ -138,7 +138,8 @@ where email = 'officer@example.gov.in';
 Allow `http://localhost:8443/login` and your deployed `/login` URL in the
 Supabase Auth redirect URL configuration for email confirmation links.
 
-All workspace routes require a signed-in, active officer. Supabase
+All workspace routes require a signed-in, active officer. Sessions are kept in
+memory only, so a fresh page load starts at sign-in again. Supabase
 configuration is required for login and workspace access; without it, the
 login page displays setup instructions and the workspace stays inaccessible.
 Supabase RLS protects the tables created by its schema.

@@ -26,7 +26,7 @@ export const supabase = createClient(
   env.supabaseAnonKey || "supabase-not-configured",
   {
     auth: {
-      persistSession: true,
+      persistSession: false,
       autoRefreshToken: true,
       detectSessionInUrl: true,
     },
