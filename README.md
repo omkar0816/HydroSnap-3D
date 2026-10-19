@@ -19,7 +19,7 @@ that could sit on top of SRISHTI-DRISHTI.
 
 | Real | Simulated | Planned |
 |---|---|---|
-| Browser-side image handling, EXIF parsing when present, device GPS, explicit location confirmation, local metadata/spatial checks, and optional local Express/PostGIS API | Watershed boundaries, seeded assets and streams, dashboard index values, mock analysis-job lifecycle, and the pipeline fixture location | Custom image-classification model, production API/database, verified field-asset records, operational satellite monitoring, and authenticated roles |
+| Browser-side image handling, EXIF parsing when present, device GPS, explicit location confirmation, local metadata/spatial checks, and optional local Express/PostGIS API | Watershed boundaries, seeded assets and streams, dashboard index values, mock analysis-job lifecycle, and the pipeline fixture location | Custom image-classification model, production API/database, verified field-asset records, operational satellite monitoring, and server-enforced roles for the local API |
 | IndexedDB local queue and browser map rendering | Mock-mode sync, permissions, and role behavior | Hindi/Marathi interface and server-side trust checks |
 | Sentinel-2 scenes, browser-generated inspection PDFs, and optional AI-generated English/Hindi/Marathi pilot summaries | Sentinel-2 indices at the demo fixture are a pipeline test, not a real asset result; no trained photo model or labelled photo-evaluation set is bundled; AI translations have not been linguistically reviewed | Verified real-pilot comparisons, a trained and evaluated photo classifier, reviewed translations, and a signed/server-verified report |
 
@@ -51,6 +51,7 @@ No screenshots are included yet; see [`docs/screenshots/README.md`](docs/screens
 | Rule-based data-check status with passed checks and attention items; photo content remains an officer decision | ✅ client preview |
 | Offline queue in IndexedDB, auto-sync on reconnect, backoff, idempotency key, "Sync now" | ✅ syncs to demo API in mock mode |
 | Role check: only GIS Analyst / Administrator can verify | ✅ UI-level |
+| Optional Supabase email/password officer login and RLS policies | ✅ when configured; new officers require approval |
 | Exports: assets GeoJSON / CSV, per-observation audit JSON | ✅ |
 | Express + PostgreSQL/PostGIS data API with spatial watershed lookup, stream snap, spatial asset/evidence storage, and idempotent uploads | ✅ local backend; no official data or authentication is bundled |
 | Verified real-asset satellite analysis, signed PDF, Hindi/Marathi UI | ⏳ planned |
@@ -118,6 +119,30 @@ storage behavior, and limitations. The Compose credentials in
 `.env.example` are development defaults only. This backend does not implement
 authentication/authorization or satellite-job workers; do not expose it to an
 untrusted network.
+
+## Optional Supabase officer login
+
+Set `VITE_SUPABASE_URL` and `VITE_SUPABASE_ANON_KEY` in `.env.local` using
+the Supabase project URL and public publishable/anon key, then restart Vite.
+Run [`supabase/schema.sql`](supabase/schema.sql) once in the Supabase SQL
+Editor. The login page supports email/password sign-in and officer
+registration. New registrations stay pending until an administrator approves
+the profile, for example in the SQL Editor:
+
+```sql
+update public.officers
+set status = 'active'
+where email = 'officer@example.gov.in';
+```
+
+Allow `http://localhost:8443/login` and your deployed `/login` URL in the
+Supabase Auth redirect URL configuration for email confirmation links.
+
+When Supabase is not configured, the existing illustrative demo remains
+accessible without sign-in, and `/login` displays setup instructions. Supabase
+RLS protects the tables created by its schema. The separate Express/PostGIS
+API does not validate Supabase sessions, so this login does not secure that
+API; keep it on a trusted local network only.
 
 ## Structure
 

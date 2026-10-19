@@ -14,6 +14,7 @@ import {
   Layers3,
   Leaf,
   LifeBuoy,
+  LogOut,
   Mail,
   Map,
   Menu,
@@ -30,7 +31,9 @@ import { AppContext } from "@/App"
 import { DemoBadge } from "@/components/common/DemoBadge"
 import { SyncIndicator } from "@/components/sync/SyncIndicator"
 import { env } from "@/config/env"
+import { isSupabaseConfigured } from "@/lib/supabase"
 import { useHydroSnap } from "@/hooks/useHydroSnap"
+import { useAuth } from "@/auth/AuthContext"
 
 const navigation = [
   {
@@ -88,6 +91,7 @@ export function AppLayout({
   clearNotification,
 }: AppLayoutProps) {
   const context = useContext(AppContext)
+  const { signOut } = useAuth()
   const data = useHydroSnap()
   const watersheds = data.watersheds.data ?? []
   const currentUser = data.currentUser.data
@@ -166,6 +170,17 @@ export function AppLayout({
     if (!search.trim()) return
     navigate(`/evidence?search=${encodeURIComponent(search.trim())}`)
     setSearch("")
+  }
+
+  async function handleSignOut() {
+    try {
+      await signOut()
+      navigate("/login", { replace: true })
+    } catch (error) {
+      context?.notify(
+        error instanceof Error ? error.message : "Could not sign out.",
+      )
+    }
   }
 
   return (
@@ -274,11 +289,7 @@ export function AppLayout({
             aria-expanded={!collapsed}
             onClick={() => setCollapsed((value) => !value)}
           >
-            {collapsed ? (
-              <ChevronRight size={17} />
-            ) : (
-              <ChevronLeft size={17} />
-            )}
+            {collapsed ? <ChevronRight size={17} /> : <ChevronLeft size={17} />}
             <span>{collapsed ? "Expand sidebar" : "Collapse sidebar"}</span>
           </button>
         </div>
@@ -399,6 +410,16 @@ export function AppLayout({
                   >
                     Administration
                   </Link>
+                  {isSupabaseConfigured && (
+                    <button
+                      type="button"
+                      className="profile-signout"
+                      onClick={() => void handleSignOut()}
+                    >
+                      <LogOut size={14} />
+                      Sign out
+                    </button>
+                  )}
                 </div>
               )}
             </div>

@@ -35,6 +35,8 @@ import {
   putQueued,
 } from "@/services/offlineStore"
 import { notifyQueueChanged, syncNow } from "@/services/syncService"
+import { isSupabaseConfigured } from "@/lib/supabase"
+import { getCurrentOfficerUser } from "@/services/authService"
 
 let observationStore: FieldObservation[] = []
 let jobStore: AnalysisJob[] = [...jobs]
@@ -94,6 +96,7 @@ async function list<T>(path: string, demoData: T[]): Promise<T[]> {
 
 export const hydrosnapService = {
   getCurrentUser: () => {
+    if (isSupabaseConfigured) return getCurrentOfficerUser()
     if (!env.useMockApi) return apiRequest<User>("/api/v1/users/me")
     return Promise.resolve(currentUser)
   },

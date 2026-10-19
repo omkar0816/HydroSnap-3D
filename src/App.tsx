@@ -2,7 +2,13 @@ import { createContext, lazy, Suspense, useMemo, useState } from "react"
 import { LoaderCircle } from "lucide-react"
 import { Navigate, Route, Routes } from "react-router-dom"
 import { AppLayout } from "@/components/layout/AppLayout"
+import { RequireOfficer } from "@/auth/RequireOfficer"
 
+const LoginPage = lazy(() =>
+  import("@/pages/LoginPage").then((module) => ({
+    default: module.LoginPage,
+  })),
+)
 const DashboardPage = lazy(() =>
   import("@/pages/DashboardPage").then((module) => ({
     default: module.DashboardPage,
@@ -69,69 +75,85 @@ export default function App() {
     }),
     [visibleLayers, watershedId],
   )
+  const fallback = (
+    <div className="page-loading" role="status">
+      <LoaderCircle className="spin" size={19} />
+      Loading workspace…
+    </div>
+  )
 
   return (
     <AppContext.Provider value={context}>
-      <AppLayout
-        notification={notification}
-        clearNotification={() => setNotification("")}
-      >
-        <Suspense
-          fallback={
-            <div className="page-loading" role="status">
-              <LoaderCircle className="spin" size={19} />
-              Loading workspace…
-            </div>
+      <Routes>
+        <Route
+          path="/login"
+          element={
+            <Suspense fallback={fallback}>
+              <LoginPage />
+            </Suspense>
           }
-        >
-          <Routes>
-            <Route path="/" element={<DashboardPage />} />
-            <Route path="/map" element={<MapAnalysisPage />} />
-            <Route path="/upload" element={<ImageUploadPage />} />
-            <Route
-              path="/assets/:assetId"
-              element={<AssetPassportPage />}
-            />
-            <Route
-              path="/watersheds"
-              element={<WorkspacePage section="watersheds" />}
-            />
-            <Route
-              path="/watersheds/:watershedId"
-              element={<WorkspacePage section="watershed-detail" />}
-            />
-            <Route
-              path="/layers"
-              element={<WorkspacePage section="layers" />}
-            />
-            <Route
-              path="/analytics"
-              element={<WorkspacePage section="analytics" />}
-            />
-            <Route
-              path="/evidence"
-              element={<WorkspacePage section="evidence" />}
-            />
-            <Route
-              path="/interventions"
-              element={<WorkspacePage section="interventions" />}
-            />
-            <Route
-              path="/reports"
-              element={<WorkspacePage section="reports" />}
-            />
-            <Route
-              path="/administration"
-              element={<WorkspacePage section="administration" />}
-            />
-            <Route
-              path="/settings"
-              element={<WorkspacePage section="settings" />}
-            />
-            <Route path="*" element={<Navigate to="/" replace />} />
-          </Routes>
-        </Suspense>
-      </AppLayout>
+        />
+        <Route
+          path="/*"
+          element={
+            <RequireOfficer>
+              <AppLayout
+                notification={notification}
+                clearNotification={() => setNotification("")}
+              >
+                <Suspense fallback={fallback}>
+                  <Routes>
+                    <Route path="/" element={<DashboardPage />} />
+                    <Route path="/map" element={<MapAnalysisPage />} />
+                    <Route path="/upload" element={<ImageUploadPage />} />
+                    <Route
+                      path="/assets/:assetId"
+                      element={<AssetPassportPage />}
+                    />
+                    <Route
+                      path="/watersheds"
+                      element={<WorkspacePage section="watersheds" />}
+                    />
+                    <Route
+                      path="/watersheds/:watershedId"
+                      element={<WorkspacePage section="watershed-detail" />}
+                    />
+                    <Route
+                      path="/layers"
+                      element={<WorkspacePage section="layers" />}
+                    />
+                    <Route
+                      path="/analytics"
+                      element={<WorkspacePage section="analytics" />}
+                    />
+                    <Route
+                      path="/evidence"
+                      element={<WorkspacePage section="evidence" />}
+                    />
+                    <Route
+                      path="/interventions"
+                      element={<WorkspacePage section="interventions" />}
+                    />
+                    <Route
+                      path="/reports"
+                      element={<WorkspacePage section="reports" />}
+                    />
+                    <Route
+                      path="/administration"
+                      element={<WorkspacePage section="administration" />}
+                    />
+                    <Route
+                      path="/settings"
+                      element={<WorkspacePage section="settings" />}
+                    />
+                    <Route path="*" element={<Navigate to="/" replace />} />
+                  </Routes>
+                </Suspense>
+              </AppLayout>
+            </RequireOfficer>
+          }
+        />
+      </Routes>
     </AppContext.Provider>
   )
 }
