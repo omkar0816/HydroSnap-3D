@@ -86,6 +86,28 @@ export default defineConfig(({ mode }) => {
 
   return {
     plugins: [react(), tailwindcss(), localAiApi()],
+    build: {
+      // The MapLibre prebuilt vendor is ~1 MB minified but ~273 KB gzipped and cannot be split internally.
+      chunkSizeWarningLimit: 1050,
+      rolldownOptions: {
+        output: {
+          codeSplitting: {
+            groups: [
+              {
+                name: "core-vendor",
+                test: /node_modules[\\/](@supabase|react|react-dom|react-router-dom|scheduler)[\\/]/,
+                priority: 20,
+              },
+              {
+                name: "maplibre",
+                test: /node_modules[\\/]maplibre-gl[\\/]/,
+                priority: 10,
+              },
+            ],
+          },
+        },
+      },
+    },
     server: {
       host: "0.0.0.0",
       port: Number(process.env.PORT ?? 8443),
