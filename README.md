@@ -120,7 +120,7 @@ storage behavior, and limitations. The Compose credentials in
 authentication/authorization or satellite-job workers; do not expose it to an
 untrusted network.
 
-## Optional Supabase officer login
+## Supabase officer login
 
 Set `VITE_SUPABASE_URL` and `VITE_SUPABASE_ANON_KEY` in `.env.local` using
 the Supabase project URL and public publishable/anon key, then restart Vite.
@@ -138,11 +138,12 @@ where email = 'officer@example.gov.in';
 Allow `http://localhost:8443/login` and your deployed `/login` URL in the
 Supabase Auth redirect URL configuration for email confirmation links.
 
-When Supabase is not configured, the existing illustrative demo remains
-accessible without sign-in, and `/login` displays setup instructions. Supabase
-RLS protects the tables created by its schema. The separate Express/PostGIS
-API does not validate Supabase sessions, so this login does not secure that
-API; keep it on a trusted local network only.
+All workspace routes require a signed-in, active officer. Supabase
+configuration is required for login and workspace access; without it, the
+login page displays setup instructions and the workspace stays inaccessible.
+Supabase RLS protects the tables created by its schema.
+The separate Express/PostGIS API does not validate Supabase sessions, so this
+login does not secure that API; keep it on a trusted local network only.
 
 ## Structure
 

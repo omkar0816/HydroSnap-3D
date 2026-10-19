@@ -3,14 +3,11 @@ import { LoaderCircle, WifiOff } from "lucide-react"
 import { useState } from "react"
 import { Navigate, useLocation } from "react-router-dom"
 import { useAuth } from "@/auth/AuthContext"
-import { isSupabaseConfigured } from "@/lib/supabase"
 
 export function RequireOfficer({ children }: { children: ReactNode }) {
   const { status, notice, retry, signOut } = useAuth()
   const location = useLocation()
   const [signOutError, setSignOutError] = useState("")
-
-  if (!isSupabaseConfigured) return <>{children}</>
 
   if (status === "initializing" || status === "checking") {
     return (
