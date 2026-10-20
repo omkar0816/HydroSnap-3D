@@ -2,7 +2,7 @@ import type {
   ReportClaims,
   ReportFact,
   ReportFacts,
-} from "../src/services/reportFacts.ts"
+} from "../shared/reportFacts.ts"
 
 export function convertDevanagariToAscii(str: string): string {
   return str.replace(/[\u0966-\u096F]/g, (ch) =>
@@ -173,10 +173,14 @@ export function validateClaims(
 
     // 3. Demo fact check: claim must say it is demo data
     const citesDemoFact = citedFacts.some((f) => f.status === "demo")
-    if (citesDemoFact && !/\bdemo\b/i.test(claim.text)) {
+    if (citesDemoFact && !/\b(demo|illustrative)\b/i.test(claim.text)) {
       errors.push(
-        `${claimIndexLabel} cites demo fact but does not state it is demo data: "${claim.text}"`,
+        `${claimIndexLabel} cites demo fact but does not label it demo or illustrative: "${claim.text}"`,
       )
+    }
+
+    if (/\b(caus(?:e|es|ed|ing)|due to|impact(?: of)?|result(?:ed|ing)? from|attribut(?:e|ed|able) to)\b/i.test(claim.text)) {
+      errors.push(`${claimIndexLabel} contains causal or impact wording: "${claim.text}"`)
     }
 
     // 4. Clean text: Devanagari to ASCII, mask exempt tokens ([F#], Sentinel-2, Landsat 8/9)
@@ -184,8 +188,8 @@ export function validateClaims(
     const maskedExempt = maskExemptTokens(asciiText)
 
     // 5. No-data fact check: a claim that cites a no-data fact and contains any number must FAIL
-    const citesNoDataFact = citedFacts.some((f) => f.status === "no-data")
-    if (citesNoDataFact) {
+    const citesOnlyNoDataFacts = citedFacts.every((f) => f.status === "no-data")
+    if (citesOnlyNoDataFacts) {
       const allExtractedNumbers = extractNumbers(maskedExempt)
       if (allExtractedNumbers.length > 0) {
         errors.push(

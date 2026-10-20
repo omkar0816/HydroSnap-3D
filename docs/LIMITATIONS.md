@@ -1,10 +1,9 @@
 # Limitations (be upfront with judges)
 
-- **Backend is local-development only.** Express + PostgreSQL/PostGIS run via
-  Docker Compose, and `VITE_USE_MOCK_API=true` remains the default. The local
-  database is seeded with illustrative demo records; mock-mode sync still
-  reaches only the in-browser demo API. The backend has no authentication,
-  authorization, managed object storage, or production deployment configuration.
+- **Backend is a prototype.** Express + PostgreSQL/PostGIS run via Docker
+  Compose, and `VITE_USE_MOCK_API=false` is the example default. Mock mode is
+  visibly labeled and syncs only within the browser. Local credentials,
+  filesystem uploads, and deployment configuration are not production-ready.
 - **Demo boundaries.** The three watersheds are hand-drawn shapes, not official
   SLUSI / CWC records. Real boundaries need `scripts/prepare_watersheds` + a
   licence-checked dataset.
@@ -12,23 +11,24 @@
   and numbers). A separate Sentinel-2 pipeline test uses real scenes at a demo
   fixture coordinate; its indices are explicitly not a real asset result or
   impact evidence. Even verified satellite indicators are not proof of impact.
-- **Trust checks are client-side previews.** They can be bypassed by a modified
-  client; server-side evidence validation is planned. Photo verification uses
-  metadata/spatial rules only and does not classify image content. The officer
-  attestation is not independent verification. The optional pilot summary using
-  the configured AI gateway is separate and does not inspect field photos.
+- **Trust checks are recomputed server-side, but do not classify image content.**
+  The server parses EXIF, recomputes hashes, and applies metadata/spatial/history
+  rules; a clean result remains pending human review. The rules cannot prove
+  that the photo depicts the claimed asset. Critical overrides require a
+  government reason and are audited.
 - **There is no custom photo classifier yet.** The repository contains no
   trained model or labelled, licence-checked field-photo set. See
   [`AI_EVALUATION.md`](AI_EVALUATION.md) for prerequisites; no image
   classification accuracy is claimed.
-- **Server-side upload validation is limited.** The API verifies image bytes,
-  their declared hash, and request geometry, but does not run the full client
-  trust policy or independently attest to photo contents.
+- **Server trust is limited by available data.** Missing or illustrative
+  boundaries and streams reduce the value of spatial checks; no rule attests
+  to field truth or image content.
 - **Streams are illustrative**, so the stream-distance check is only a demo of
   the logic.
-- **Roles are not authenticated.** The verify button is hidden for field
-  officers in the UI, and the backend's example current-user/team responses
-  are illustrative; there is no authentication or authorization.
+- **Identity requires deployment setup.** API routes verify Supabase JWTs and
+  active officer/government rows, but example issuer/key values are placeholders.
+  Provision and test the tables and RLS policies before deployment; UI role
+  checks alone are not authorization.
 - **Database demos are not official data.** Seeded boundaries, streams,
   assets, and satellite values are illustrative. Import only datasets whose
   source, licence, and attribution have been verified.
@@ -38,6 +38,15 @@
   synced images are decoded to files under `storage/uploads/` and the database
   stores only a relative path and hash. Production blob storage and retention
   controls are not included.
+- **Satellite runtime depends on external systems.** The worker retrieves
+  Sentinel-2 L2A through Element84 Earth Search; clouds and scene availability
+  can produce `insufficient_data`. Worker image dependency downloads and STAC/
+  COG access require network connectivity. Results have no rainfall
+  normalization.
+- **Reports are not causal assessments.** Numbers and trends are computed in
+  code, and generated claims are validated, but NDVI differences can reflect
+  rainfall, season, management or other conditions. They are differences
+  between windows, not impact estimates.
 - **English application UI.** The pilot summary endpoint can return English,
   Hindi, and Marathi text, but those AI-generated translations are not yet
   human-reviewed and are not a Hindi/Marathi interface.

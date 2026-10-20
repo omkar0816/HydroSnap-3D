@@ -1,5 +1,6 @@
 import { useContext, useEffect, useMemo, useState } from "react"
 import { Link, useLocation, useParams } from "react-router-dom"
+import { jsPDF } from "jspdf"
 import {
   Activity,
   ArrowDownToLine,
@@ -27,9 +28,16 @@ import {
 } from "lucide-react"
 import { AppContext } from "@/App"
 import { useHydroSnap } from "@/hooks/useHydroSnap"
+import { useWatershedEvidence } from "@/hooks/useWatershedEvidence"
 import { DemoBadge } from "@/components/common/DemoBadge"
 import { TrustPanel } from "@/components/evidence/TrustPanel"
+import { WatershedSatellitePanel } from "@/components/maps/WatershedSatellitePanel"
 import { downloadObservationAudit } from "@/utils/exporters"
+import {
+  evidenceAssetsToAssets,
+  evidenceObservationsToFieldObservations,
+} from "@/utils/evidence"
+import type { SavedWatershedReport } from "../../shared/reportFacts"
 import type {
   AnalysisJob,
   Asset,
@@ -107,7 +115,11 @@ type MapLayerKey = typeof mapLayerKeys[number]
 
 export function WorkspacePage({ section }: { section: Section }) {
   const context = useContext(AppContext)
-  const data = useHydroSnap()
+  const data = useHydroSnap({
+    loadAssets: section !== "watershed-detail" && section !== "evidence" && section !== "interventions",
+    loadObservations: section !== "watershed-detail" && section !== "evidence" && section !== "interventions",
+    loadInterventions: section !== "watershed-detail" && section !== "evidence" && section !== "interventions",
+  })
   const location = useLocation()
   const params = useParams()
   const [query, setQuery] = useState(
@@ -116,10 +128,16 @@ export function WorkspacePage({ section }: { section: Section }) {
   const [statusFilter, setStatusFilter] = useState("All statuses")
   const [assetTypeFilter, setAssetTypeFilter] = useState("All types")
   const [reportAssetId, setReportAssetId] = useState("")
+    const [generatedReport, setGeneratedReport] = useState<SavedWatershedReport>()
+    const [expandedFactId, setExpandedFactId] = useState<string>()
   const [busy, setBusy] = useState(false)
   const [selectedLayer, setSelectedLayer] = useState<string>()
+  const [showInterventionForm, setShowInterventionForm] = useState(false)
+  const [interventionName, setInterventionName] = useState("")
+  const [interventionType, setInterventionType] = useState("")
+  const [interventionStatus, setInterventionStatus] = useState<Intervention["status"]>("Planned")
+  const [interventionInstalledAt, setInterventionInstalledAt] = useState("")
   const watersheds = data.watersheds.data ?? []
-  const allAssets = data.assets.data ?? []
   const thematicLayers = data.layers.data ?? []
   const analysisResults = data.results.data ?? []
   const latestIndex = (metric: "NDVI" | "NDWI") =>
@@ -132,6 +150,23 @@ export function WorkspacePage({ section }: { section: Section }) {
           ? params.watershedId
           : context?.watershedId),
     ) ?? watersheds[0]
+  const evidenceQuery = useWatershedEvidence(
+    section === "watershed-detail" || section === "evidence" || section === "interventions"
+      ? activeWatershed?.id
+      : undefined,
+  )
+  const allAssets = useMemo(
+    () => section === "watershed-detail" || section === "evidence" || section === "interventions"
+      ? evidenceAssetsToAssets(evidenceQuery.data)
+      : data.assets.data ?? [],
+    [data.assets.data, evidenceQuery.data, section],
+  )
+  const scopedObservations = useMemo(
+    () => section === "watershed-detail" || section === "evidence" || section === "interventions"
+      ? evidenceObservationsToFieldObservations(evidenceQuery.data)
+      : data.observations.data ?? [],
+    [data.observations.data, evidenceQuery.data, section],
+  )
   const assets = allAssets.filter(
     (asset) => asset.watershedId === activeWatershed?.id,
   )
@@ -189,27 +224,16 @@ export function WorkspacePage({ section }: { section: Section }) {
     }
   }
 
-  async function makeReport(type: Report["type"], assetId?: string) {
+  async function makeReport() {
     if (!activeWatershed) return
-    const reportAsset =
-      type === "Field inspection"
-        ? allAssets.find((item) => item.id === assetId)
-        : undefined
-    if (type === "Field inspection" && !reportAsset) {
-      context?.notify("Choose an asset for the field inspection report.")
-      return
-    }
     setBusy(true)
     try {
-      await data.createReport.mutateAsync({
-        name: reportAsset
-          ? `${reportAsset.name} field inspection`
-          : `${activeWatershed.name} ${type.toLowerCase()}`,
-        type,
+      const report = await data.generateWatershedReport.mutateAsync({
         watershedId: activeWatershed.id,
-        ...(reportAsset ? { assetId: reportAsset.id } : {}),
+        language: "en",
       })
-      context?.notify("Sample report created and added to your report list.")
+      setGeneratedReport(report)
+      context?.notify("Validated watershed report saved.")
     } catch (error) {
       context?.notify(
         error instanceof Error ? error.message : "Could not create report.",
@@ -378,7 +402,7 @@ export function WorkspacePage({ section }: { section: Section }) {
           </div>
           <AssetTable
             assets={assets}
-            observations={data.observations.data ?? []}
+            observations={scopedObservations}
             watersheds={watersheds}
             canVerify={
               data.currentUser.data?.role === "GIS Analyst" ||
@@ -386,6 +410,7 @@ export function WorkspacePage({ section }: { section: Section }) {
             }
             onVerify={verifyAsset}
           />
+          <WatershedSatellitePanel watershedId={activeWatershed.id} />
         </>
       )}
 
@@ -430,7 +455,7 @@ export function WorkspacePage({ section }: { section: Section }) {
           </div>
           <AssetTable
             assets={filteredAssets}
-            observations={data.observations.data ?? []}
+            observations={scopedObservations}
             watersheds={watersheds}
             canVerify={
               data.currentUser.data?.role === "GIS Analyst" ||
@@ -667,143 +692,173 @@ export function WorkspacePage({ section }: { section: Section }) {
             </div>
             <button
               className="button button-primary button-small"
-              disabled
-              title="Planned"
+              onClick={() => setShowInterventionForm((visible) => !visible)}
             >
               <Plus size={15} /> Add intervention
             </button>
           </div>
+          {showInterventionForm && activeWatershed && (
+            <form
+              className="intervention-create-form"
+              onSubmit={(event) => {
+                event.preventDefault()
+                void data.createIntervention.mutateAsync({
+                  watershedId: activeWatershed.id,
+                  name: interventionName,
+                  type: interventionType,
+                  status: interventionStatus,
+                  ...(interventionInstalledAt ? { installedAt: interventionInstalledAt } : {}),
+                }).then(() => {
+                  setShowInterventionForm(false)
+                  setInterventionName("")
+                  setInterventionType("")
+                  context?.notify("Intervention added.")
+                }).catch((error: unknown) => {
+                  context?.notify(error instanceof Error ? error.message : "Could not add intervention.")
+                })
+              }}
+            >
+              <label>
+                Intervention name
+                <input required value={interventionName} onChange={(event) => setInterventionName(event.target.value)} />
+              </label>
+              <label>
+                Type
+                <input required value={interventionType} onChange={(event) => setInterventionType(event.target.value)} />
+              </label>
+              <label>
+                Status
+                <select value={interventionStatus} onChange={(event) => setInterventionStatus(event.target.value as Intervention["status"])}>
+                  <option>Planned</option>
+                  <option>In progress</option>
+                  <option>Completed</option>
+                </select>
+              </label>
+              <label>
+                Installation date{interventionStatus === "Completed" ? " (required)" : ""}
+                <input
+                  type="date"
+                  required={interventionStatus === "Completed"}
+                  value={interventionInstalledAt}
+                  onChange={(event) => setInterventionInstalledAt(event.target.value)}
+                />
+              </label>
+              <button className="button button-primary button-small" type="submit" disabled={data.createIntervention.isPending}>
+                Save intervention
+              </button>
+            </form>
+          )}
           <div className="intervention-grid">
-            {(data.interventions.data ?? [])
-              .filter((item) => item.watershedId === activeWatershed?.id)
-              .map((item) => (
-                <InterventionCard key={item.id} item={item} />
-              ))}
+            {(evidenceQuery.data?.interventions ?? []).map((item) => (
+              <InterventionCard
+                key={item.id}
+                item={{
+                  id: item.id,
+                  name: item.type,
+                  type: item.type,
+                  watershedId: activeWatershed?.id ?? "",
+                  village: "",
+                  status: item.status as Intervention["status"],
+                  progress: item.progress ?? 0,
+                  budget: 0,
+                  dueDate: item.installedAt ?? item.recordedAt.slice(0, 10),
+                  assetId: item.assetId ?? undefined,
+                  installedAt: item.installedAt ?? undefined,
+                }}
+              />
+            ))}
           </div>
         </section>
       )}
 
       {section === "reports" && (
-        <section className="panel workspace-table-panel">
-          <div className="table-toolbar">
-            <div>
-              <strong className="panel-toolbar-title">Report library</strong>
-              <span className="table-result-count">
-                {(data.reports.data ?? []).length} reports
-              </span>
+        <div className="page-stack">
+          <section className="panel workspace-table-panel">
+            <div className="table-toolbar">
+              <div>
+                <strong className="panel-toolbar-title">Report library</strong>
+                <span className="table-result-count">{(data.reports.data ?? []).length} reports</span>
+              </div>
+              <button
+                className="button button-primary button-small"
+                disabled={busy || !activeWatershed}
+                onClick={() => void makeReport()}
+              >
+                <Plus size={15} /> Generate report
+              </button>
             </div>
-            <button
-              className="button button-primary button-small"
-              disabled={busy}
-              onClick={() => void makeReport("Watershed summary")}
-            >
-              <Plus size={15} /> Generate report
-            </button>
-          </div>
-          <div className="data-table-wrap">
-            <table className="data-table">
-              <thead>
-                <tr>
-                  <th>REPORT</th>
-                  <th>TYPE</th>
-                  <th>CREATED</th>
-                  <th>STATUS</th>
-                  <th />
-                </tr>
-              </thead>
-              <tbody>
-                {(data.reports.data ?? []).map((report) => (
-                  <tr key={report.id}>
-                    <td>
-                      <span className="report-file-icon">
-                        <FileBarChart2 size={17} />
-                      </span>
-                      <span className="report-name">{report.name}</span>
-                    </td>
-                    <td>{report.type}</td>
-                    <td>{report.createdAt}</td>
-                    <td>
-                      <span className="status-pill status-green">
-                        {report.status}
-                      </span>
-                    </td>
-                    <td>
-                      {report.type === "Field inspection" &&
-                      report.assetId ? (
-                        <Link
-                          className="icon-button small-icon"
-                          aria-label={`Download ${report.name}`}
-                          title="Open asset passport and download PDF"
-                          to={`/assets/${encodeURIComponent(report.assetId)}?download=pdf`}
-                        >
-                          <Download size={15} />
-                        </Link>
-                      ) : (
-                        <button
-                          className="icon-button small-icon"
-                          aria-label={`Download ${report.name} (planned)`}
-                          disabled
-                          title="Planned"
-                        >
-                          <Download size={15} />
-                        </button>
-                      )}
-                    </td>
-                  </tr>
-                ))}
-              </tbody>
-            </table>
-          </div>
-          <div className="report-config">
-            <div>
-              <strong>Report configuration</strong>
-              <small>Select a report type to create a sample preview.</small>
+            <div className="data-table-wrap">
+              <table className="data-table">
+                <thead><tr><th>REPORT</th><th>TYPE</th><th>CREATED</th><th>STATUS</th></tr></thead>
+                <tbody>
+                  {(data.reports.data ?? []).map((report) => (
+                    <tr key={report.id}>
+                      <td><span className="report-file-icon"><FileBarChart2 size={17} /></span><span className="report-name">{report.name}</span></td>
+                      <td>{report.type}</td>
+                      <td>{report.createdAt}</td>
+                      <td><span className="status-pill status-green">{report.status}</span></td>
+                    </tr>
+                  ))}
+                </tbody>
+              </table>
             </div>
-            <div>
-              <label className="report-asset-select">
-                <span>Asset for field inspection</span>
-                <select
-                  value={reportAssetId}
-                  onChange={(event) => setReportAssetId(event.target.value)}
-                >
-                  <option value="">Choose an asset</option>
-                  {allAssets
-                    .filter(
-                      (asset) => asset.watershedId === activeWatershed?.id,
-                    )
-                    .map((asset) => (
-                      <option key={asset.id} value={asset.id}>
-                        {asset.name}
-                        {asset.location.source === "demo" ? " · Illustrative" : ""}
-                      </option>
-                    ))}
-                </select>
-              </label>
-              {([
-                "Field inspection",
-                "Asset registry",
-                "Analytics",
-              ] as const).map((type) => (
+          </section>
+          {generatedReport && (
+            <section className="panel watershed-report-result">
+              <div className="table-toolbar">
+                <div>
+                  <strong className="panel-toolbar-title">Validated report · {generatedReport.factSet.subject}</strong>
+                  <span className="table-result-count">Saved {new Date(generatedReport.createdAt).toLocaleString()}</span>
+                </div>
                 <button
-                  key={type}
-                  className="button button-secondary button-small"
-                  disabled={busy || (type === "Field inspection" && !reportAssetId)}
-                  title={type === "Field inspection" ? "Field inspection PDF" : "Planned"}
-                  onClick={() =>
-                    void makeReport(
-                      type,
-                      type === "Field inspection" ? reportAssetId : undefined,
-                    )
-                  }
-                >
-                  {type === "Field inspection"
-                    ? "Generate field inspection"
-                    : `${type} · Planned`}
-                </button>
-              ))}
-            </div>
-          </div>
-        </section>
+                  className="icon-button small-icon"
+                  aria-label="Download saved watershed report PDF"
+                  title="Download saved report PDF"
+                  onClick={() => exportWatershedReport(generatedReport)}
+                ><Download size={15} /></button>
+              </div>
+              <section className="watershed-report-gaps" aria-labelledby="report-gaps-title">
+                <h2 id="report-gaps-title">Data gaps</h2>
+                <ul>{generatedReport.gaps.map((item) => <li key={item.code}>{item.text}</li>)}</ul>
+              </section>
+              <div className="watershed-report-claims">
+                <h2>Claims</h2>
+                {generatedReport.claims.claims.map((claim, index) => (
+                  <article key={`${index}-${claim.factIds.join("-")}`}>
+                    <p>{claim.text}</p>
+                    <div className="citation-list">
+                      {claim.factIds.map((factId) => {
+                        const fact = generatedReport.factSet.facts.find((item) => item.id === factId)
+                        if (!fact) return null
+                        return (
+                          <button
+                            key={factId}
+                            className="citation-chip"
+                            type="button"
+                            onClick={() => setExpandedFactId(expandedFactId === factId ? undefined : factId)}
+                            aria-expanded={expandedFactId === factId}
+                          >
+                            {fact.label} · {fact.status}
+                          </button>
+                        )
+                      })}
+                    </div>
+                    {claim.factIds.map((factId) => {
+                      if (expandedFactId !== factId) return null
+                      const fact = generatedReport.factSet.facts.find((item) => item.id === factId)
+                      return fact ? (
+                        <div className="citation-records" key={factId}>
+                          <strong>{fact.label}</strong>
+                          <span>{fact.recordIds.length ? fact.recordIds.join(", ") : "No source records"}</span>
+                        </div>
+                      ) : null
+                    })}
+                  </article>
+                ))}
+              </div>
+            </section>
+          )}
+        </div>
       )}
 
       {section === "administration" && (
@@ -965,6 +1020,24 @@ export function WorkspacePage({ section }: { section: Section }) {
       )}
     </div>
   )
+}
+
+function exportWatershedReport(report: SavedWatershedReport) {
+  const pdf = new jsPDF({ unit: "mm", format: "a4" })
+  const pageHeight = pdf.internal.pageSize.getHeight()
+  const lines = pdf.splitTextToSize(report.renderedMarkdown, 180)
+  let y = 15
+  pdf.setFont("helvetica", "normal")
+  pdf.setFontSize(9)
+  for (const line of lines) {
+    if (y > pageHeight - 15) {
+      pdf.addPage()
+      y = 15
+    }
+    pdf.text(line, 15, y)
+    y += 5
+  }
+  pdf.save(`watershed-report-${report.id}.pdf`)
 }
 
 function AssetTable({

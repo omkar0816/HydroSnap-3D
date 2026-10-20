@@ -8,6 +8,10 @@ import type {
   Watershed,
 } from "@/types/domain"
 import { calendarDateDistanceDays } from "@/utils/dates"
+import {
+  evaluateTrustRules,
+  TRUST_THRESHOLDS,
+} from "../../shared/trustRules"
 
 /**
  * Deterministic client-side evidence checks.
@@ -16,14 +20,10 @@ import { calendarDateDistanceDays } from "@/utils/dates"
  * reviewer. They do not inspect image content or replace server validation.
  */
 export const trustConfig = {
-  /** Max acceptable device-GPS accuracy radius before asking for review. */
-  maxGpsAccuracyMeters: 30,
-  /** Photos older than this (relative to inspection date) need review. */
-  maxPhotoAgeDays: 30,
-  /** Stream-based assets further than this from a mapped stream need review. */
-  maxStreamSnapMeters: 150,
-  /** Manual pin further than this from the EXIF position is flagged. */
-  maxManualShiftMeters: 250,
+  maxGpsAccuracyMeters: TRUST_THRESHOLDS.maxGpsAccuracyMeters,
+  maxPhotoAgeDays: TRUST_THRESHOLDS.maxPhotoAgeDays,
+  maxStreamSnapMeters: TRUST_THRESHOLDS.maxStreamDistanceMeters,
+  maxManualShiftMeters: TRUST_THRESHOLDS.maxManualShiftMeters,
 }
 
 export const streamBasedTypes: Asset["type"][] = [
@@ -62,194 +62,81 @@ export interface TrustInput {
 }
 
 export function assessTrust(input: TrustInput): TrustAssessment {
-  const reasons: TrustReason[] = []
-  const now = input.now ?? new Date()
-
-  // 1. EXIF presence
-  if (!input.exif?.hasGps) {
+  const containing = input.containingWatershed
+  const flags = evaluateTrustRules({
+    exifGpsPresent: input.exif?.hasGps ?? false,
+    exifTakenAt: input.exif?.takenAt,
+    exifTimestampMissing: !input.exif?.takenAt,
+    exifDistanceMeters: input.manualShiftMeters,
+    reportedAccuracyMeters: input.location.accuracyMeters,
+    inspectionDate: input.inspectionDate,
+    manualPin: input.location.source === "manual",
+    locationInsideWatershed: Boolean(containing && containing.id === input.declaredWatershedId),
+    watershedMismatch: Boolean(containing && containing.id !== input.declaredWatershedId),
+    assetType: input.assetType,
+    nearestStreamDistanceMeters: input.snapDistanceMeters,
+    ambiguousAssetMatch: input.assetMatchAmbiguous,
+    assetTypeHistoryConflict: input.assetTypeConflict,
+    duplicateImage: Boolean(input.imageSha256 && input.existing.some((item) => item.imageSha256 === input.imageSha256)),
+    assetSelection: input.assetSelection,
+    now: input.now,
+  })
+  const legacyCodes: Record<string, string> = {
+    exif_gps_missing: "exif-gps-missing",
+    exif_gps_present: "exif-gps-present",
+    exif_gps_far: "manual-shift-large",
+    manual_pin_shift: "manual-shift-large",
+    exif_gps_match: "photo-location-match",
+    photo_date_mismatch: "timestamp-gap",
+    exif_timestamp_missing: "timestamp-missing",
+    gps_accuracy_poor: "gps-accuracy-low",
+    duplicate_image: "duplicate-image",
+    outside_watershed: "outside-watersheds",
+    watershed_mismatch: "watershed-mismatch",
+    ambiguous_asset_match: "asset-match-ambiguous",
+    asset_type_history_conflict: "asset-type-conflict",
+    new_asset_selected: "new-asset-selected",
+    existing_asset_selected: "existing-asset-selected",
+    far_from_stream: "far-from-stream",
+    stream_data_missing: "no-stream-layer",
+  }
+  const reasons: TrustReason[] = flags.map((flag) => ({
+    code: legacyCodes[flag.code] ?? flag.code,
+    severity: flag.severity === "warn" || flag.code === "photo_date_mismatch" ||
+        flag.code === "asset_type_history_conflict"
+      ? "warning"
+      : flag.severity,
+    message: flag.message,
+  }))
+  if (input.exif?.takenAt && !flags.some((flag) => flag.code === "photo_date_mismatch")) {
     reasons.push({
-      code: "exif-gps-missing",
-      severity: "warning",
-      message:
-        "No GPS in image metadata; location came from device or a manual pin.",
-    })
-  } else {
-    reasons.push({
-      code: "exif-gps-present",
+      code: "timestamp-match",
       severity: "info",
-      message: "GPS coordinates present in image metadata.",
+      message: `Photo capture date is within ${trustConfig.maxPhotoAgeDays} days of the inspection date.`,
     })
   }
-
-  // 2. Manual correction distance
-  if (
-    input.manualShiftMeters !== undefined &&
-    input.manualShiftMeters > trustConfig.maxManualShiftMeters
-  ) {
+  if (input.location.accuracyMeters !== undefined && !flags.some((flag) => flag.code === "gps_accuracy_poor")) {
     reasons.push({
-      code: "manual-shift-large",
-      severity: "critical",
-      message: `Confirmed location is ${Math.round(input.manualShiftMeters)} m from the EXIF position.`,
-    })
-  } else if (input.manualShiftMeters !== undefined) {
-    reasons.push({
-      code: "photo-location-match",
+      code: "gps-accuracy-good",
       severity: "info",
-      message: `Confirmed point is ${Math.round(input.manualShiftMeters)} m from the photo's EXIF GPS.`,
-    })
-  } else if (input.location.source === "exif") {
-    reasons.push({
-      code: "photo-location-match",
-      severity: "info",
-      message: "Confirmed point uses GPS coordinates embedded in the photo.",
+      message: `GPS accuracy ±${Math.round(input.location.accuracyMeters)} m is within ${trustConfig.maxGpsAccuracyMeters} m.`,
     })
   }
-
-  // 3. Compare calendar dates; EXIF capture times usually carry no timezone.
-  if (input.exif?.takenAt) {
-    const gapDays = calendarDateDistanceDays(
-      input.exif.takenAt,
-      input.inspectionDate,
-    )
-    if (gapDays !== undefined && gapDays > trustConfig.maxPhotoAgeDays) {
-      reasons.push({
-        code: "timestamp-gap",
-        severity: "warning",
-        message: `Photo was taken ${gapDays} days from the inspection date.`,
-      })
-    } else if (gapDays !== undefined) {
-      reasons.push({
-        code: "timestamp-match",
-        severity: "info",
-        message: `Photo capture date is within ${trustConfig.maxPhotoAgeDays} days of the inspection date.`,
-      })
-    }
-  } else {
-    reasons.push({
-      code: "timestamp-missing",
-      severity: "warning",
-      message: "Capture time not available in image metadata.",
-    })
+  if (input.imageSha256 && !flags.some((flag) => flag.code === "duplicate_image")) {
+    reasons.push({ code: "image-unique", severity: "info", message: "No matching image SHA-256 was found in available observations." })
   }
-
-  // 4. GPS accuracy
-  if (
-    input.location.accuracyMeters !== undefined &&
-    input.location.accuracyMeters > trustConfig.maxGpsAccuracyMeters
-  ) {
-    reasons.push({
-      code: "gps-accuracy-low",
-      severity: "warning",
-      message: `GPS accuracy ±${Math.round(input.location.accuracyMeters)} m exceeds ${trustConfig.maxGpsAccuracyMeters} m.`,
-    })
-  } else if (input.location.accuracyMeters !== undefined) {
-    reasons.push({
-    code: "gps-accuracy-good",
-    severity: "info",
-    message: `GPS accuracy ±${Math.round(input.location.accuracyMeters)} m is within ${trustConfig.maxGpsAccuracyMeters} m.`,
-    })
+  if (input.containingWatershed?.id === input.declaredWatershedId) {
+    reasons.push({ code: "watershed-match", severity: "info", message: `Location is inside the selected watershed: ${input.containingWatershed.name}.` })
   }
-
-  // 5. Duplicate image
-  if (
-    input.imageSha256 &&
-    input.existing.some((item) => item.imageSha256 === input.imageSha256)
-  ) {
-    reasons.push({
-      code: "duplicate-image",
-      severity: "critical",
-      message: "The same image (SHA-256 match) was already submitted.",
-    })
-  } else if (input.imageSha256) {
-    reasons.push({
-      code: "image-unique",
-      severity: "info",
-      message: "No matching image SHA-256 was found in currently available observations.",
-    })
+  if (isStreamBased(input.assetType) && input.snapDistanceMeters !== undefined && input.snapDistanceMeters <= trustConfig.maxStreamSnapMeters) {
+    reasons.push({ code: "near-stream", severity: "info", message: `${input.assetType} is within ${trustConfig.maxStreamSnapMeters} m of the nearest mapped stream.` })
   }
-
-  // 6. Watershed containment
-  if (!input.containingWatershed) {
-    reasons.push({
-      code: "outside-watersheds",
-      severity: "critical",
-      message: "Location is outside every known watershed boundary.",
-    })
-  } else if (input.containingWatershed.id !== input.declaredWatershedId) {
-    reasons.push({
-      code: "watershed-mismatch",
-      severity: "warning",
-      message: `Location falls in ${input.containingWatershed.name}, not the selected watershed.`,
-    })
-  } else {
-    reasons.push({
-      code: "watershed-match",
-      severity: "info",
-      message: `Location is inside the selected watershed: ${input.containingWatershed.name}.`,
-    })
-  }
-
-  // 7. Stream proximity (stream-based assets only)
-  if (isStreamBased(input.assetType)) {
-    if (input.snapDistanceMeters === undefined) {
-      reasons.push({
-        code: "no-stream-layer",
-        severity: "warning",
-        message: "No mapped stream nearby to check placement against.",
-      })
-    } else if (input.snapDistanceMeters > trustConfig.maxStreamSnapMeters) {
-      reasons.push({
-        code: "far-from-stream",
-        severity: "warning",
-        message: `${input.assetType} is ${Math.round(input.snapDistanceMeters)} m from the nearest mapped stream.`,
-      })
-    } else {
-      reasons.push({
-        code: "near-stream",
-        severity: "info",
-        message: `${input.assetType} is within ${trustConfig.maxStreamSnapMeters} m of the nearest mapped stream.`,
-      })
-    }
-  }
-
-  if (input.assetMatchAmbiguous) {
-    reasons.push({
-      code: "asset-match-ambiguous",
-      severity: "warning",
-      message:
-        "Multiple nearby assets of this type match the location; confirm the correct asset.",
-    })
-  }
-  if (input.assetSelection?.kind === "new") {
-    reasons.push({
-      code: "new-asset-selected",
-      severity: "info",
-      message: "Officer selected a new asset after reviewing nearby matches.",
-    })
-  } else if (input.assetSelection?.kind === "existing") {
-    reasons.push({
-      code: "existing-asset-selected",
-      severity: "info",
-      message: `Officer linked this observation to ${input.assetSelection.id} (${input.assetSelection.type}), ${Math.round(input.assetSelection.distanceMeters)} m away.`,
-    })
-  }
-  if (input.assetTypeConflict) {
-    reasons.push({
-      code: "asset-type-conflict",
-      severity: "warning",
-      message:
-        "Nearby assets have a different type; confirm whether this is an existing or new asset.",
-    })
-  }
-
-  const assessment = {
-    status: "Consistent" as const,
+  return withReasonStatus({
+    status: "Consistent",
     reasons,
-    checkedAt: now.toISOString(),
-    engine: "client-preview" as const,
-  }
-  const baseAssessment = withReasonStatus(assessment)
-  return baseAssessment
+    checkedAt: (input.now ?? new Date()).toISOString(),
+    engine: "client-preview",
+  })
 }
 
 function withReasonStatus(assessment: TrustAssessment): TrustAssessment {

@@ -18,6 +18,7 @@ import {
 import { Link } from "react-router-dom"
 import { AppContext } from "@/App"
 import { useHydroSnap } from "@/hooks/useHydroSnap"
+import { useWatershedEvidence } from "@/hooks/useWatershedEvidence"
 import {
   WatershedMap,
   type Basemap,
@@ -33,6 +34,7 @@ import { downloadAssetsCsv, downloadAssetsGeoJson } from "@/utils/exporters"
 import { geometryBounds, type Bounds } from "@/utils/geo"
 import { resolveWatershed } from "@/services/spatialService"
 import { watershedStats } from "@/utils/watershedStats"
+import { evidenceAssetsToAssets } from "@/utils/evidence"
 import {
   assetsAsOf,
   buildTimelineSteps,
@@ -100,11 +102,19 @@ const defaultVisibleLayers = {
 
 export function MapAnalysisPage() {
   const context = useContext(AppContext)
-  const data = useHydroSnap()
+  const data = useHydroSnap({
+    loadAssets: false,
+    loadObservations: false,
+    loadInterventions: false,
+  })
   const watersheds = data.watersheds.data ?? EMPTY_WATERSHEDS
   const watershed =
     watersheds.find(({ id }) => id === context?.watershedId) ?? watersheds[0]
-  const allAssets = data.assets.data ?? EMPTY_ASSETS
+  const evidenceQuery = useWatershedEvidence(watershed?.id)
+  const allAssets = useMemo(
+    () => evidenceAssetsToAssets(evidenceQuery.data),
+    [evidenceQuery.data],
+  )
   const [timelineInterval, setTimelineInterval] = useState<TimelineInterval>(6)
   const timelineSteps = useMemo(
     () => buildTimelineSteps(new Date(), 2023, timelineInterval),

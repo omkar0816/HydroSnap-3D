@@ -1,8 +1,9 @@
 # Local PostgreSQL/PostGIS backend
 
-The development API is Express + TypeScript, backed by PostgreSQL 16 with
-PostGIS 3.6. It runs separately from Vite and is optional; mock mode remains
-the default for the frontend.
+The API is Express + TypeScript, backed by PostgreSQL 16 with PostGIS 3.6.
+It runs separately from Vite. The example environment defaults to the local
+API (`VITE_USE_MOCK_API=false`); opting into mock mode shows a persistent demo
+banner.
 
 ## Start it
 
@@ -14,8 +15,7 @@ docker compose up -d db
 cp .env.example .env.local
 ```
 
-Set `VITE_USE_MOCK_API=false` in `.env.local`, then apply the schema and seed
-illustrative demo records:
+Apply ordered migrations and seed illustrative demo records:
 
 ```sh
 pnpm db:setup
@@ -33,11 +33,12 @@ connectivity. Stop the database with `docker compose down`. Its named volume
 is retained. The development-only database credentials are in
 `.env.example`; do not use them in a shared deployment.
 
-`pnpm db:setup` applies `db/migrations/001_init.sql` once and inserts demo
-users, watersheds, streams, assets, map layers, timeline values, jobs,
-results, interventions, and reports. The records are explicitly illustrative,
-not official or field-verified. Do not infer production coverage or watershed
-impact from them.
+`pnpm db:setup` applies all migration files by filename, tracks them in
+`schema_migrations`, and seeds demo rows; repeated runs are safe. `pnpm
+db:backfill` copies legacy JSON payload values into typed columns, `pnpm
+db:seed:dev` seeds explicitly demo-marked knowledge-engine rows, and
+`pnpm db:compute-drainage` derives drainage summaries from PostGIS streams.
+Demo values are not official or field-verified.
 
 ## API
 
@@ -47,6 +48,10 @@ All data routes are under `/api/v1`:
 |---|---|---|
 | GET | `/users/me`, `/users/team` | Demo user and team |
 | GET, POST | `/watersheds` | List or import a watershed GeoJSON feature |
+| GET | `/watersheds/:id/evidence` | Provenance-bearing evidence scoped to one watershed in SQL |
+| GET | `/watersheds/:id/satellite` | Typed satellite measurements; empty list when absent |
+| POST | `/watersheds/:id/report` | Generate and save a validated server-fact report |
+| GET | `/watersheds/:id/reports`, `/reports/:reportId` | List/retrieve saved report with exact fact set |
 | GET | `/layers`, `/satellite/timeline` | Map layers and demo timeline values |
 | GET, POST | `/streams` | List or import stream line geometry |
 | GET, POST | `/assets` | List or create spatial assets |
@@ -57,8 +62,9 @@ All data routes are under `/api/v1`:
 | GET | `/spatial/snap-to-stream?longitude=…&latitude=…&watershedId=…` | Find nearest stream point |
 | GET | `/analytics/jobs`, `/analytics/results` | List analysis records |
 | POST | `/analytics` | Queue an analysis record |
-| GET | `/interventions` | List interventions |
-| GET, POST | `/reports` | List or create reports |
+| GET, POST | `/interventions` | List or create interventions |
+| PATCH | `/interventions/:id` | Change status and append status history |
+| GET | `/reports` | List saved watershed reports |
 
 Watershed resolution uses `ST_Covers`, so a point on a boundary counts as
 inside. Where boundaries overlap, the smallest area measured as PostGIS
@@ -69,18 +75,33 @@ silently changed. Geometry imports are checked for valid WGS84 geometry.
 
 ## Photo storage
 
-Upload requests may include a base64 image data URL in `imageDataUrl` and the
-browser-computed `imageSha256`. The API validates the encoding, MIME signature,
-20 MB size limit, and SHA-256 before writing decoded bytes to
-`storage/uploads/`. PostgreSQL stores only the observation JSON (without image
-bytes), relative photo path, SHA-256, and spatial point. API responses include
-the photo route URL in `imageDataUrl`, so existing UI image rendering remains
-compatible. Keep `storage/uploads/` backed up with the database; production
-object storage and upload-retention policy are not included.
+Uploads may include image data and a client hash, but the server recomputes
+SHA-256, parses EXIF from uploaded bytes, and derives spatial, asset-history,
+and travel checks from PostGIS. Client `trust`, `exif`, `verificationStatus`,
+`officerId`, and audit data are ignored. Results are stored in
+`verification_results` with engine, rule version, and flags. Decoded photos are
+written to `storage/uploads/`; remote object storage and retention are not
+included.
 
 `POST /uploads` accepts an `Idempotency-Key` header. Reusing the same key and
 payload returns the original observation; reusing it for different content
-returns HTTP 409. A mismatched image hash is rejected with HTTP 422.
+returns HTTP 409. Duplicate image bytes return a structured `duplicate_image`
+409; the offline queue marks these records rejected rather than retrying them.
+
+## Authentication and reports
+
+Every route except `GET /health` requires a valid Supabase JWT. JWTs are
+verified against Supabase JWKS; the caller JWT and anon key resolve active
+officer or government-admin rows. No service-role key is used. Mutations
+require an active officer; verification requires a government reason to
+override critical server flags. Upload and report generation are rate-limited
+per IP. JSON bodies are capped at 28 MB; encoded images are capped at 20 MB.
+
+Watershed reports are built from server-loaded evidence and deterministic
+shared facts. Code computes trends and data gaps before the LLM words claims;
+the validator rejects unknown facts, unsupported numbers, unlabelled demo
+claims, and causal/impact wording. The exact fact set and SHA-256 hash are
+stored with claims and code-generated gaps for audit.
 
 ## Environment
 
@@ -95,7 +116,10 @@ defaults below are suitable only for local development.
 | `CORS_ORIGINS` | `http://localhost:8443,http://localhost:5173` | Allowed browser origins |
 | `UPLOAD_DIRECTORY` | `storage/uploads` | Local photo directory |
 | `VITE_API_BASE_URL` | `http://localhost:8000` | Frontend API origin |
-| `VITE_USE_MOCK_API` | `true` | Set `false` to use the API |
+| `VITE_USE_MOCK_API` | `false` | Set `true` for visibly labeled mock mode |
+| `SUPABASE_URL` | `https://example.supabase.co` | Supabase Auth issuer/JWKS URL |
+| `SUPABASE_ANON_KEY` | development placeholder | Public anon key for caller-JWT lookups |
+| `CLOUD_COVER_LIMIT` | `30` | Satellite worker scene cloud-cover threshold |
 
 The app's spatial service uses the local `geo.ts` implementation in mock mode
 and falls back to it only when the API cannot be reached. API validation and
@@ -103,7 +127,8 @@ server errors are surfaced rather than treated as offline fallback.
 
 ## Scope and limitations
 
-This is a local-development backend. It has no authentication, authorization,
-production hardening, satellite-processing workers, or remote object storage.
-The UI's role restrictions are not server authorization. Do not expose the
-service to an untrusted network.
+This remains a prototype. Local Compose credentials, filesystem photo storage,
+and example Supabase values must not be used for shared deployment. Configure
+and review Supabase officer/admin tables and RLS policies before deployment.
+Satellite results have no rainfall normalization and are not causal evidence;
+image metadata rules cannot confirm image content.

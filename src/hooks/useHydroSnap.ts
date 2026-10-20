@@ -6,6 +6,7 @@ import type {
   PilotAnalysis,
   Report,
 } from "@/types/domain"
+import type { SavedWatershedReport } from "../../shared/reportFacts"
 
 export function usePilotSummary(analysis?: PilotAnalysis) {
   return useQuery({
@@ -20,7 +21,11 @@ export function usePilotSummary(analysis?: PilotAnalysis) {
   })
 }
 
-export function useHydroSnap() {
+export function useHydroSnap(options: {
+  loadAssets?: boolean
+  loadObservations?: boolean
+  loadInterventions?: boolean
+} = {}) {
   const queryClient = useQueryClient()
   const currentUserQuery = useQuery({
     queryKey: ["current-user"],
@@ -41,10 +46,12 @@ export function useHydroSnap() {
   const assetsQuery = useQuery({
     queryKey: ["assets"],
     queryFn: hydrosnapService.getAssets,
+    enabled: options.loadAssets !== false,
   })
   const observationsQuery = useQuery({
     queryKey: ["observations"],
     queryFn: hydrosnapService.getObservations,
+    enabled: options.loadObservations !== false,
   })
   const jobsQuery = useQuery({
     queryKey: ["jobs"],
@@ -61,6 +68,7 @@ export function useHydroSnap() {
   const interventionsQuery = useQuery({
     queryKey: ["interventions"],
     queryFn: hydrosnapService.getInterventions,
+    enabled: options.loadInterventions !== false,
   })
   const reportsQuery = useQuery({
     queryKey: ["reports"],
@@ -92,11 +100,20 @@ export function useHydroSnap() {
     }) => hydrosnapService.createAnalysis(watershedId, type),
     onSuccess: () => void queryClient.invalidateQueries({ queryKey: ["jobs"] }),
   })
-  const createReport = useMutation({
-    mutationFn: (report: Omit<Report, "id" | "createdAt" | "status">) =>
-      hydrosnapService.createReport(report),
-    onSuccess: () =>
-      void queryClient.invalidateQueries({ queryKey: ["reports"] }),
+  const generateWatershedReport = useMutation({
+    mutationFn: ({ watershedId, language }: { watershedId: string; language?: "en" | "hi" | "mr" }) =>
+      hydrosnapService.generateWatershedReport(watershedId, language),
+    onSuccess: (report: SavedWatershedReport) => {
+      void queryClient.invalidateQueries({ queryKey: ["reports"] })
+      void queryClient.invalidateQueries({ queryKey: ["watershed-reports", report.watershedId] })
+    },
+  })
+  const createIntervention = useMutation({
+    mutationFn: hydrosnapService.createIntervention,
+    onSuccess: () => {
+      void queryClient.invalidateQueries({ queryKey: ["interventions"] })
+      void queryClient.invalidateQueries({ queryKey: ["watershed-evidence"] })
+    },
   })
 
   return {
@@ -114,6 +131,7 @@ export function useHydroSnap() {
     saveObservation,
     verifyObservation,
     createAnalysis,
-    createReport,
+    generateWatershedReport,
+    createIntervention,
   }
 }

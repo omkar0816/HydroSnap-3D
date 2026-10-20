@@ -20,6 +20,29 @@ const lineSchema = z.object({
 
 const recordSchema = z.record(z.string(), z.unknown())
 
+export const interventionCreateSchema = z.object({
+  watershedId: z.string().trim().min(1),
+  assetId: z.string().trim().min(1).nullable().optional(),
+  name: z.string().trim().min(1),
+  type: z.string().trim().min(1),
+  installedAt: z.iso.date().optional(),
+  status: z.enum(["Planned", "In progress", "Completed"]).default("Planned"),
+}).strict()
+
+export const interventionUpdateSchema = z.object({
+  status: z.enum(["Planned", "In progress", "Completed"]),
+  installedAt: z.iso.date().optional(),
+  note: z.string().trim().max(1000).optional(),
+}).strict()
+
+export function parseRequest<T extends z.ZodType>(schema: T, value: unknown): z.infer<T> {
+  const parsed = schema.safeParse(value)
+  if (!parsed.success) {
+    throw new RequestValidationError(parsed.error.issues[0]?.message ?? "Request is invalid.")
+  }
+  return parsed.data
+}
+
 function validateCoordinateTree(value: unknown): void {
   if (!Array.isArray(value) || value.length === 0) {
     throw new RequestValidationError(

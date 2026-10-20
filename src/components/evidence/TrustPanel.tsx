@@ -41,7 +41,8 @@ export function TrustPanel({
   return (
     <section className="panel hs-trust-panel">
       <div className="section-kicker">
-        <span className="kicker-dot blue-dot" /> FIELD EVIDENCE CHECKS
+        <span className="kicker-dot blue-dot" />
+        {trust?.engine === "server" ? "SERVER VERIFICATION" : "PRELIMINARY FIELD CHECKS"}
       </div>
       <h3>Location and evidence review</h3>
       <div className="hs-content-check" aria-live="polite">
@@ -143,8 +144,9 @@ export function TrustPanel({
             </p>
           )}
           <p className="hs-muted">
-            These are client-side preview checks, not official verification.
-            Records remain pending officer review.
+            {trust.engine === "server"
+              ? "Server-derived rules are stored with this record. Human officer verification remains a separate decision."
+              : "These browser checks are preliminary only. The server recomputes verification after sync; no record is automatically verified."}
           </p>
         </>
       )}

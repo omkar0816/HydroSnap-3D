@@ -150,7 +150,7 @@ export interface TrustAssessment {
   engine: "client-preview" | "server"
 }
 
-export type SyncStatus = "pending" | "syncing" | "synced" | "failed"
+export type SyncStatus = "pending" | "syncing" | "synced" | "failed" | "rejected"
 
 /** Local IndexedDB record wrapping an observation with its sync state. */
 export interface QueuedObservation {
@@ -238,9 +238,20 @@ export interface Intervention {
   watershedId: UUID
   village: string
   status: "Planned" | "In progress" | "Completed"
+  assetId?: UUID
+  installedAt?: string
   progress: number
   budget: number
   dueDate: string
+}
+
+export type InterventionInput = {
+  watershedId: UUID
+  assetId?: UUID | null
+  name: string
+  type: string
+  installedAt?: string
+  status: Intervention["status"]
 }
 
 export interface Report {

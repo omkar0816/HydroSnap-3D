@@ -1,5 +1,5 @@
 import { env } from "@/config/env"
-import { apiRequest } from "@/services/apiClient"
+import { ApiError, apiRequest } from "@/services/apiClient"
 import {
   listQueue,
   recoverInterruptedSync,
@@ -79,7 +79,11 @@ export function backoffDelay(attempts: number): number {
 }
 
 export function isDue(record: QueuedObservation, now = Date.now()): boolean {
-  if (record.syncStatus === "synced" || record.syncStatus === "syncing") {
+  if (
+    record.syncStatus === "synced" ||
+    record.syncStatus === "syncing" ||
+    record.syncStatus === "rejected"
+  ) {
     return false
   }
   if (record.syncStatus === "failed" && record.nextAttemptAt) {
@@ -117,13 +121,14 @@ export function syncNow(force = false): Promise<SyncSummary> {
     const records = (await listQueue()).filter(
       (record) =>
         record.syncStatus !== "synced" &&
+        record.syncStatus !== "rejected" &&
         (force ? record.syncStatus !== "syncing" : isDue(record)),
     )
     for (const record of records) {
       let claimed = false
       const current = await updateQueued(record.id, (latest) => {
         const eligible = force
-          ? latest?.syncStatus !== "synced" && latest?.syncStatus !== "syncing"
+          ? latest?.syncStatus !== "synced" && latest?.syncStatus !== "syncing" && latest?.syncStatus !== "rejected"
           : latest !== undefined && isDue(latest)
         if (!latest || !eligible) {
           return latest
@@ -139,8 +144,19 @@ export function syncNow(force = false): Promise<SyncSummary> {
       try {
         saved = await upload(current.observation)
       } catch (error) {
+        const duplicate = error instanceof ApiError &&
+          error.status === 409 && error.code === "duplicate_image"
         const updated = await updateQueued(record.id, (latest) => {
           if (!latest) return latest
+          if (duplicate) {
+            return {
+              ...latest,
+              syncStatus: "rejected",
+              attempts: latest.attempts + 1,
+              lastError: error.message,
+              nextAttemptAt: undefined,
+            }
+          }
           const attempts = latest.attempts + 1
           return {
             ...latest,

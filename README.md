@@ -7,20 +7,19 @@ Watershed field-evidence and monitoring prototype for **SIH 2026 · SIH26015**
 boundaries + satellite indicators, built as an analytics/verification layer
 that could sit on top of SRISHTI-DRISHTI.
 
-> **Prototype status: frontend-first, demo data.** An optional local
-> PostgreSQL/PostGIS API is available for development; the default remains
-> mock mode. The optional Vercel function generates pilot-analysis summaries;
-> photo checks use local metadata and spatial rules, not image classification.
-> Watershed boundaries, assets and NDVI/NDWI values are illustrative and
-> labelled **Demo** in the UI. See
+> **Prototype status: demo data with a local authenticated backend.** The
+> example environment uses the Express/PostgreSQL API; mock mode is opt-in and
+> visibly labeled. Photo checks use server-recomputed metadata and spatial
+> rules, not image classification. Watershed boundaries, assets and seeded
+> measurements remain illustrative and labelled **Demo**. See
 > [`docs/LIMITATIONS.md`](docs/LIMITATIONS.md).
 
 ## What's real and what is not
 
 | Real | Simulated | Planned |
 |---|---|---|
-| Browser-side image handling, EXIF parsing when present, device GPS, explicit location confirmation, local metadata/spatial checks, and optional local Express/PostGIS API | Watershed boundaries, seeded assets and streams, dashboard index values, mock analysis-job lifecycle, and the pipeline fixture location | Custom image-classification model, production API/database, verified field-asset records, operational satellite monitoring, and server-enforced roles for the local API |
-| IndexedDB local queue and browser map rendering | Mock-mode sync, permissions, and role behavior | Hindi/Marathi interface and server-side trust checks |
+| Browser-side image handling, explicit location confirmation, Supabase JWT enforcement, PostGIS verification/evidence, validated reports, and a queued Sentinel-2 worker | Watershed boundaries, seeded assets/streams/satellite rows, and dashboard summary values | Verified field-data coverage, production hosting/storage, and operational role provisioning |
+| IndexedDB local queue and browser map rendering | Mock-mode sync and illustrative role data | Hindi/Marathi application interface |
 | Sentinel-2 scenes, browser-generated inspection PDFs, and optional AI-generated English/Hindi/Marathi pilot summaries | Sentinel-2 indices at the demo fixture are a pipeline test, not a real asset result; no trained photo model or labelled photo-evaluation set is bundled; AI translations have not been linguistically reviewed | Verified real-pilot comparisons, a trained and evaluated photo classifier, reviewed translations, and a signed/server-verified report |
 
 The live build can change independently of this repository. Do not treat
@@ -51,10 +50,10 @@ No screenshots are included yet; see [`docs/screenshots/README.md`](docs/screens
 | Rule-based data-check status with passed checks and attention items; photo content remains an officer decision | ✅ client preview |
 | Offline queue in IndexedDB, auto-sync on reconnect, backoff, idempotency key, "Sync now" | ✅ syncs to demo API in mock mode |
 | Role check: only GIS Analyst / Administrator can verify | ✅ UI-level |
-| Optional Supabase email/password officer login and RLS policies | ✅ when configured; new officers require approval |
 | Exports: assets GeoJSON / CSV, per-observation audit JSON | ✅ |
-| Express + PostgreSQL/PostGIS data API with spatial watershed lookup, stream snap, spatial asset/evidence storage, and idempotent uploads | ✅ local backend; no official data or authentication is bundled |
-| Verified real-asset satellite analysis, signed PDF, Hindi/Marathi UI | ⏳ planned |
+| Authenticated Express + PostgreSQL/PostGIS API with watershed evidence, upload verification, saved reports, and typed analysis jobs | ✅ local prototype; seed records are demo |
+| Sentinel-2 worker with seasonal windows and data-quality gating | ✅ implemented; requires worker dependencies/network and real watershed inputs |
+| Production deployment, managed storage, official data, signed PDF, Hindi/Marathi UI | ⏳ not included |
 
 ## Run locally
 
@@ -90,9 +89,7 @@ docker compose up -d db
 cp .env.example .env.local
 ```
 
-In `.env.local`, set `VITE_USE_MOCK_API=false`. Apply the SQL migration and
-load the existing illustrative watersheds, streams, assets, layers, and demo
-results:
+Apply all ordered migrations and load illustrative seed records:
 
 ```sh
 pnpm db:setup
@@ -105,9 +102,9 @@ pnpm api:dev
 pnpm dev
 ```
 
-The API listens at `http://localhost:8000`. The database setup migration
-enables PostGIS and creates spatial indexes; `pnpm db:setup` applies it once
-and seeds demo data, which is still illustrative rather than official. Spatial
+The API listens at `http://localhost:8000`. `pnpm db:setup` applies ordered
+idempotent migrations and seeds demo data, which remains illustrative rather
+than official. Spatial
 lookup uses `ST_Covers` (boundary points count as inside) and picks the
 smallest overlapping watershed. Stream snapping uses PostGIS geography
 distances in metres and returns a separate snapped point; it never moves the
@@ -116,35 +113,8 @@ written under `storage/uploads/`, and referenced by URL in API responses.
 
 See [`docs/BACKEND.md`](docs/BACKEND.md) for routes, environment variables,
 storage behavior, and limitations. The Compose credentials in
-`.env.example` are development defaults only. This backend does not implement
-authentication/authorization or satellite-job workers; do not expose it to an
-untrusted network.
-
-## Supabase officer login
-
-Set `VITE_SUPABASE_URL` and `VITE_SUPABASE_ANON_KEY` in `.env.local` using
-the Supabase project URL and public publishable/anon key, then restart Vite.
-Run [`supabase/schema.sql`](supabase/schema.sql) once in the Supabase SQL
-Editor. The login page supports email/password sign-in and officer
-registration. New registrations stay pending until an administrator approves
-the profile, for example in the SQL Editor:
-
-```sql
-update public.officers
-set status = 'active'
-where email = 'officer@example.gov.in';
-```
-
-Allow `http://localhost:8443/login` and your deployed `/login` URL in the
-Supabase Auth redirect URL configuration for email confirmation links.
-
-All workspace routes require a signed-in, active officer. Sessions are kept in
-memory only, so a fresh page load starts at sign-in again. Supabase
-configuration is required for login and workspace access; without it, the
-login page displays setup instructions and the workspace stays inaccessible.
-Supabase RLS protects the tables created by its schema.
-The separate Express/PostGIS API does not validate Supabase sessions, so this
-login does not secure that API; keep it on a trusted local network only.
+`.env.example` are development placeholders only. Do not expose the local
+backend to an untrusted network.
 
 ## Structure
 
@@ -195,7 +165,7 @@ silently; no secrets in the frontend.
 
 ```env
 VITE_API_BASE_URL=http://localhost:8000
-VITE_USE_MOCK_API=true          # false = call the local Express API under /api/v1
+VITE_USE_MOCK_API=false         # true = visibly labeled illustrative mock mode
 VITE_WATERSHED_PMTILES_URL=     # optional real boundaries
 VITE_WATERSHED_ATTRIBUTION=
 ```
@@ -230,6 +200,6 @@ Load the site online before demonstrating offline mode.
 
 The frontend is organized around the service boundary: route components use
 `useHydroSnap`, which calls `hydrosnapService`; demo records live separately in
-`src/services/mock/mockData.ts`. No backend or credentials are required to run
-the prototype in mock mode. Set `VITE_USE_MOCK_API=false` only when the local
-Express API is running at `VITE_API_BASE_URL`.
+`src/services/mock/mockData.ts`. Mock mode does not require the backend. The
+example environment uses the local Express API at `VITE_API_BASE_URL`, with
+Supabase JWTs required for protected routes.

@@ -5,9 +5,7 @@ function readBoolean(value: string | undefined, fallback: boolean): boolean {
 
 export const env = {
   apiBaseUrl: import.meta.env.VITE_API_BASE_URL ?? "http://localhost:8000",
-  useMockApi: readBoolean(import.meta.env.VITE_USE_MOCK_API, true),
-  supabaseUrl: import.meta.env.VITE_SUPABASE_URL ?? "",
-  supabaseAnonKey: import.meta.env.VITE_SUPABASE_ANON_KEY ?? "",
+  useMockApi: readBoolean(import.meta.env.VITE_USE_MOCK_API, false),
   /**
    * Optional URL of a .pmtiles file with official watershed boundaries
    * (built by scripts/prepare_watersheds). Empty = demo boundaries only.

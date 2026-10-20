@@ -3,7 +3,7 @@ import {
   renderTemplateReport,
   validateClaims,
 } from "../../server/reportValidator"
-import type { ReportClaims, ReportFacts } from "../services/reportFacts"
+import type { ReportClaims, ReportFacts } from "../../shared/reportFacts"
 
 describe("Report Validator", () => {
   const mockFacts: ReportFacts = {
@@ -18,6 +18,8 @@ describe("Report Validator", () => {
         source: "Sentinel-2",
         observedAt: "2023-08-15",
         status: "measured",
+        recordIds: ["rain-1"],
+        kind: "measurement",
       },
       {
         id: "F2",
@@ -27,6 +29,8 @@ describe("Report Validator", () => {
         source: "Sentinel-2",
         observedAt: "2023-08-15",
         status: "demo",
+        recordIds: ["sat-demo"],
+        kind: "measurement",
       },
       {
         id: "F3",
@@ -36,6 +40,8 @@ describe("Report Validator", () => {
         source: "Manual",
         observedAt: "2023-08-15",
         status: "no-data",
+        recordIds: [],
+        kind: "measurement",
       },
       {
         id: "F4",
@@ -45,6 +51,8 @@ describe("Report Validator", () => {
         source: "Landsat 8",
         observedAt: "2023-08-15",
         status: "measured",
+        recordIds: ["cloud-1"],
+        kind: "measurement",
       },
     ],
   }
@@ -141,7 +149,22 @@ describe("Report Validator", () => {
     }
     const result = validateClaims(claims, mockFacts)
     expect(result.ok).toBe(false)
-    expect(result.errors[0]).toContain("does not state it is demo data")
+    expect(result.errors[0]).toContain("does not label it demo or illustrative")
+  })
+
+  it("accepts illustrative wording for a demo fact", () => {
+    const result = validateClaims({
+      claims: [{ text: "Illustrative vegetation index is 0.43 [F2]", factIds: ["F2"] }],
+    }, mockFacts)
+    expect(result.ok).toBe(true)
+  })
+
+  it("rejects causal or impact language", () => {
+    const result = validateClaims({
+      claims: [{ text: "The intervention caused 120.4 mm of rainfall [F1]", factIds: ["F1"] }],
+    }, mockFacts)
+    expect(result.ok).toBe(false)
+    expect(result.errors[0]).toContain("causal or impact wording")
   })
 
   it("ignores [F#] markers and sensor names", () => {

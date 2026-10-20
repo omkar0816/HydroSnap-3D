@@ -16,5 +16,17 @@ services:
       timeout: 3s
       retries: 10
 
+  satellite-worker:
+    build:
+      context: .
+      dockerfile: scripts/satellite/Dockerfile
+    environment:
+      DATABASE_URL: postgresql://${POSTGRES_USER:-hydrosnap}:${POSTGRES_PASSWORD:-hydrosnap}@db:5432/${POSTGRES_DB:-hydrosnap}
+      CLOUD_COVER_LIMIT: ${CLOUD_COVER_LIMIT:-30}
+    depends_on:
+      db:
+        condition: service_healthy
+    restart: unless-stopped
+
 volumes:
   pgdata:

@@ -9,7 +9,9 @@ function required(name: string, fallback?: string): string {
 }
 
 export const serverEnv = {
-  databaseUrl: required("DATABASE_URL"),
+  databaseUrl: required("DATABASE_URL", "postgresql://hydrosnap:hydrosnap@localhost:5432/hydrosnap"),
+  supabaseUrl: required("SUPABASE_URL", "https://example.supabase.co"),
+  supabaseAnonKey: required("SUPABASE_ANON_KEY", "demo-anon-key"),
   port: Number(process.env.API_PORT ?? 8000),
   publicUrl: process.env.API_PUBLIC_URL?.replace(/\/$/, ""),
   corsOrigins: (

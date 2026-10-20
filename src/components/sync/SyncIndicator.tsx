@@ -38,6 +38,7 @@ export function SyncIndicator() {
 
   const pending = records.filter((r) => r.syncStatus === "pending").length
   const failed = records.filter((r) => r.syncStatus === "failed").length
+  const rejected = records.filter((r) => r.syncStatus === "rejected").length
   const synced = records.filter((r) => r.syncStatus === "synced").length
   const waiting = pending + failed
 
@@ -47,6 +48,8 @@ export function SyncIndicator() {
       ? "Syncing…"
       : syncError
         ? "Sync unavailable"
+        : rejected
+          ? `${rejected} rejected`
         : waiting
           ? `${waiting} to sync`
           : "All synced"
@@ -77,19 +80,16 @@ export function SyncIndicator() {
               Could not access the offline queue: {syncError}
             </p>
           )}
-          <p>
-            {pending} pending · {failed} failed · {synced} synced
-          </p>
+          <p>{pending} pending · {failed} failed · {rejected} rejected · {synced} synced</p>
           {records
-            .filter((r) => r.syncStatus === "failed")
+            .filter((r) => r.syncStatus === "failed" || r.syncStatus === "rejected")
             .slice(0, 3)
             .map((r) => (
-              <p key={r.id} className="hs-muted">
-                {r.observation.assetType}: {r.lastError} (retry{" "}
-                {r.nextAttemptAt
+              <p key={r.id} className="hs-muted" role={r.syncStatus === "rejected" ? "alert" : undefined}>
+                {r.observation.assetType}: {r.syncStatus === "rejected" ? "Rejected by server" : "Upload failed"}: {r.lastError}
+                {r.syncStatus === "failed" && ` (retry ${r.nextAttemptAt
                   ? new Date(r.nextAttemptAt).toLocaleTimeString()
-                  : "soon"}
-                )
+                  : "soon"})`}
               </p>
             ))}
           {env.useMockApi && (

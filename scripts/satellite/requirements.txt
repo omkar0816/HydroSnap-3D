@@ -1,0 +1,10 @@
+matplotlib>=3.9
+numpy>=2.1
+odc-stac>=0.4
+psycopg[binary]>=3.2
+pyproj>=3.7
+pystac-client>=0.8
+pytest>=8
+rasterio>=1.4
+rioxarray>=0.19
+shapely>=2.0

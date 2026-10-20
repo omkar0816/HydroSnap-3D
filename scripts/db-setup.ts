@@ -1,7 +1,11 @@
-import { readFile } from "node:fs/promises"
+import { readdir, readFile } from "node:fs/promises"
 import path from "node:path"
 import pg from "pg"
-import { serverEnv } from "../server/env.ts"
+import dotenv from "dotenv"
+
+dotenv.config({ path: [".env.local", ".env"] })
+
+const databaseUrl = process.env.DATABASE_URL ?? "postgresql://hydrosnap:hydrosnap@localhost:5432/hydrosnap"
 import {
   assets,
   currentUser,
@@ -18,7 +22,7 @@ import type {
   LineStringGeometry,
 } from "../src/types/geojson.ts"
 
-const pool = new pg.Pool({ connectionString: serverEnv.databaseUrl })
+const pool = new pg.Pool({ connectionString: databaseUrl })
 
 async function main() {
   let client: pg.PoolClient | undefined
@@ -30,29 +34,31 @@ async function main() {
          applied_at timestamptz NOT NULL DEFAULT now()
        )`,
     )
-    const migrationName = "001_init.sql"
-    const migrationPath = path.resolve("db/migrations", migrationName)
-    const migration = await readFile(migrationPath, "utf8")
+    const migrationDir = path.resolve("db/migrations")
+    const migrationFiles = (await readdir(migrationDir))
+      .filter((fileName) => fileName.endsWith(".sql"))
+      .sort()
+
     await client.query("BEGIN")
-    const applied = await client.query(
-      "SELECT 1 FROM schema_migrations WHERE filename = $1",
-      [migrationName],
-    )
-    if (!applied.rowCount) {
-      await client.query(migration)
-      await client.query(
-        "INSERT INTO schema_migrations (filename) VALUES ($1)",
+    for (const migrationName of migrationFiles) {
+      const migrationPath = path.resolve(migrationDir, migrationName)
+      const migration = await readFile(migrationPath, "utf8")
+      const applied = await client.query(
+        "SELECT 1 FROM schema_migrations WHERE filename = $1",
         [migrationName],
       )
+      if (!applied.rowCount) {
+        await client.query(migration)
+        await client.query(
+          "INSERT INTO schema_migrations (filename) VALUES ($1)",
+          [migrationName],
+        )
+      }
     }
     await seedDemoData(client)
     await client.query("COMMIT")
     console.info(
-      `${
-        applied.rowCount
-          ? "Database migration already applied;"
-          : "Database migrated;"
-      } demo records loaded.`,
+      `Database migration check complete; ${migrationFiles.length} migration file(s) processed.`,
     )
   } catch (error) {
     if (client) await client.query("ROLLBACK")
@@ -84,8 +90,9 @@ async function seedDemoData(client: pg.PoolClient) {
 
   for (const watershed of watersheds) {
     await client.query(
-      `INSERT INTO watersheds (id, payload, boundary)
-       VALUES ($1, $2::jsonb, ST_SetSRID(ST_GeomFromGeoJSON($3), 4326))
+      `INSERT INTO watersheds
+         (id, payload, boundary, source, source_licence, demo)
+       VALUES ($1, $2::jsonb, ST_SetSRID(ST_GeomFromGeoJSON($3), 4326), 'demo', 'Illustrative demo data', true)
        ON CONFLICT (id) DO NOTHING`,
       [
         watershed.id,
@@ -97,8 +104,9 @@ async function seedDemoData(client: pg.PoolClient) {
 
   for (const asset of assets) {
     await client.query(
-      `INSERT INTO assets (id, watershed_id, payload, location)
-       VALUES ($1, $2, $3::jsonb, ST_SetSRID(ST_MakePoint($4, $5), 4326))
+      `INSERT INTO assets
+         (id, watershed_id, payload, location, source, source_licence, demo)
+       VALUES ($1, $2, $3::jsonb, ST_SetSRID(ST_MakePoint($4, $5), 4326), 'demo', 'Illustrative demo data', true)
        ON CONFLICT (id) DO NOTHING`,
       [
         asset.id,
@@ -126,22 +134,42 @@ async function seedDemoData(client: pg.PoolClient) {
         geometry: feature.geometry,
       }
       await client.query(
-        `INSERT INTO streams (id, watershed_id, payload, geometry)
-         VALUES ($1, NULL, $2::jsonb, ST_SetSRID(ST_GeomFromGeoJSON($3), 4326))
+        `INSERT INTO streams
+           (id, watershed_id, payload, geometry, source, source_licence, demo)
+         VALUES ($1, NULL, $2::jsonb, ST_SetSRID(ST_GeomFromGeoJSON($3), 4326), 'demo', 'Illustrative demo data', true)
          ON CONFLICT (id) DO NOTHING`,
         [id, JSON.stringify(payload), JSON.stringify(feature.geometry)],
       )
     }
   }
 
-  for (const job of jobs)
-    await insertPayload(client, "analysis_jobs", job.id, job)
+  for (const job of jobs) {
+    await client.query(
+      `INSERT INTO analysis_jobs
+         (id, payload, status, watershed_id, params, created_by, created_at, finished_at)
+       VALUES ($1, $2::jsonb, 'done', $3, '{"demo":true}'::jsonb,
+               'demo-seed', $4::timestamptz, $4::timestamptz)
+       ON CONFLICT (id) DO UPDATE SET
+         payload = EXCLUDED.payload, status = 'done',
+         watershed_id = EXCLUDED.watershed_id,
+         params = EXCLUDED.params, created_by = EXCLUDED.created_by,
+         finished_at = EXCLUDED.finished_at`,
+      [job.id, JSON.stringify({ ...job, status: "Completed", demo: true }),
+       job.watershedId, job.createdAt],
+    )
+  }
   for (const result of results) {
     await insertPayload(client, "analysis_results", result.id, result)
     await insertPayload(client, "satellite_timeline", result.id, result)
   }
   for (const item of interventions) {
-    await insertPayload(client, "interventions", item.id, item)
+    await client.query(
+      `INSERT INTO interventions
+         (id, payload, watershed_id, status, source, source_licence, recorded_at, demo)
+       VALUES ($1, $2::jsonb, $3, $4, 'demo', 'Illustrative demo data', now(), true)
+       ON CONFLICT (id) DO NOTHING`,
+      [item.id, JSON.stringify(item), item.watershedId, item.status],
+    )
   }
   for (const report of reports) {
     await insertPayload(client, "reports", report.id, report)

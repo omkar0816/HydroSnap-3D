@@ -25,6 +25,7 @@ describe("sync backoff", () => {
     expect(isDue(record, 5_000)).toBe(false)
     expect(isDue(record, 20_000)).toBe(true)
     expect(isDue({ ...record, syncStatus: "synced" }, 20_000)).toBe(false)
+    expect(isDue({ ...record, syncStatus: "rejected" }, 20_000)).toBe(false)
   })
 
   it("preserves verification made while an upload is in flight", () => {
