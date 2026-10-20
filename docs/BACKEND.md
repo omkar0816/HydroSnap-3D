@@ -33,6 +33,21 @@ connectivity. Stop the database with `docker compose down`. Its named volume
 is retained. The development-only database credentials are in
 `.env.example`; do not use them in a shared deployment.
 
+Satellite analysis jobs are queued by the API and processed separately by the
+Python worker. Start it with:
+
+```sh
+docker compose up -d satellite-worker
+docker compose logs -f satellite-worker
+```
+
+The worker reads Sentinel-2 L2A from the public Element84 Earth Search STAC
+catalogue; it does not use Google Earth Engine credentials or require a
+catalogue API key. It needs network access to the catalogue and cloud-hosted
+COGs, plus database access to the same PostGIS instance as the API. In a
+deployment, run it as a persistent worker service with the production
+`DATABASE_URL`; Vercel request functions do not run this polling worker.
+
 `pnpm db:setup` applies all migration files by filename, tracks them in
 `schema_migrations`, and seeds demo rows; repeated runs are safe. `pnpm
 db:backfill` copies legacy JSON payload values into typed columns, `pnpm

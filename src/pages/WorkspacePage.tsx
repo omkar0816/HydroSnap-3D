@@ -29,7 +29,10 @@ import { useHydroSnap } from "@/hooks/useHydroSnap"
 import { useWatershedEvidence } from "@/hooks/useWatershedEvidence"
 import { DemoBadge } from "@/components/common/DemoBadge"
 import { TrustPanel } from "@/components/evidence/TrustPanel"
-import { InterventionCard, type EvidenceIntervention } from "@/components/interventions/InterventionCard"
+import {
+  InterventionCard,
+  type EvidenceIntervention,
+} from "@/components/interventions/InterventionCard"
 import { WatershedSatellitePanel } from "@/components/maps/WatershedSatellitePanel"
 import { downloadObservationAudit } from "@/utils/exporters"
 import {
@@ -115,9 +118,18 @@ type MapLayerKey = typeof mapLayerKeys[number]
 export function WorkspacePage({ section }: { section: Section }) {
   const context = useContext(AppContext)
   const data = useHydroSnap({
-    loadAssets: section !== "watershed-detail" && section !== "evidence" && section !== "interventions",
-    loadObservations: section !== "watershed-detail" && section !== "evidence" && section !== "interventions",
-    loadInterventions: section !== "watershed-detail" && section !== "evidence" && section !== "interventions",
+    loadAssets:
+      section !== "watershed-detail" &&
+      section !== "evidence" &&
+      section !== "interventions",
+    loadObservations:
+      section !== "watershed-detail" &&
+      section !== "evidence" &&
+      section !== "interventions",
+    loadInterventions:
+      section !== "watershed-detail" &&
+      section !== "evidence" &&
+      section !== "interventions",
   })
   const location = useLocation()
   const params = useParams()
@@ -126,16 +138,18 @@ export function WorkspacePage({ section }: { section: Section }) {
   )
   const [statusFilter, setStatusFilter] = useState("All statuses")
   const [assetTypeFilter, setAssetTypeFilter] = useState("All types")
-  const [interventionFilter, setInterventionFilter] = useState<"Active" | "All">("Active")
+  const [interventionFilter, setInterventionFilter] =
+    useState<"Active" | "All">("Active")
   const [reportAssetId, setReportAssetId] = useState("")
-    const [generatedReport, setGeneratedReport] = useState<SavedWatershedReport>()
-    const [expandedFactId, setExpandedFactId] = useState<string>()
+  const [generatedReport, setGeneratedReport] = useState<SavedWatershedReport>()
+  const [expandedFactId, setExpandedFactId] = useState<string>()
   const [busy, setBusy] = useState(false)
   const [selectedLayer, setSelectedLayer] = useState<string>()
   const [showInterventionForm, setShowInterventionForm] = useState(false)
   const [interventionName, setInterventionName] = useState("")
   const [interventionType, setInterventionType] = useState("")
-  const [interventionStatus, setInterventionStatus] = useState<Intervention["status"]>("Planned")
+  const [interventionStatus, setInterventionStatus] =
+    useState<Intervention["status"]>("Planned")
   const [interventionInstalledAt, setInterventionInstalledAt] = useState("")
   const watersheds = data.watersheds.data ?? []
   const thematicLayers = data.layers.data ?? []
@@ -151,20 +165,28 @@ export function WorkspacePage({ section }: { section: Section }) {
           : context?.watershedId),
     ) ?? watersheds[0]
   const evidenceQuery = useWatershedEvidence(
-    section === "watershed-detail" || section === "evidence" || section === "interventions"
+    section === "watershed-detail" ||
+      section === "evidence" ||
+      section === "interventions"
       ? activeWatershed?.id
       : undefined,
   )
   const allAssets = useMemo(
-    () => section === "watershed-detail" || section === "evidence" || section === "interventions"
-      ? evidenceAssetsToAssets(evidenceQuery.data)
-      : data.assets.data ?? [],
+    () =>
+      section === "watershed-detail" ||
+      section === "evidence" ||
+      section === "interventions"
+        ? evidenceAssetsToAssets(evidenceQuery.data)
+        : (data.assets.data ?? []),
     [data.assets.data, evidenceQuery.data, section],
   )
   const scopedObservations = useMemo(
-    () => section === "watershed-detail" || section === "evidence" || section === "interventions"
-      ? evidenceObservationsToFieldObservations(evidenceQuery.data)
-      : data.observations.data ?? [],
+    () =>
+      section === "watershed-detail" ||
+      section === "evidence" ||
+      section === "interventions"
+        ? evidenceObservationsToFieldObservations(evidenceQuery.data)
+        : (data.observations.data ?? []),
     [data.observations.data, evidenceQuery.data, section],
   )
   const assets = allAssets.filter(
@@ -172,14 +194,17 @@ export function WorkspacePage({ section }: { section: Section }) {
   )
   const allInterventions = evidenceQuery.data?.interventions ?? []
   const visibleInterventions = useMemo(
-    () => interventionFilter === "Active"
-      ? allInterventions.filter(({ status }) => status === "In progress")
-      : allInterventions,
+    () =>
+      interventionFilter === "Active"
+        ? allInterventions.filter(({ status }) => status === "In progress")
+        : allInterventions,
     [allInterventions, interventionFilter],
   )
-  const canEditInterventions = ["Field Officer", "GIS Analyst", "Administrator"].includes(
-    data.currentUser.data?.role ?? "",
-  )
+  const canEditInterventions = [
+    "Field Officer",
+    "GIS Analyst",
+    "Administrator",
+  ].includes(data.currentUser.data?.role ?? "")
   const filteredAssets = useMemo(
     () =>
       allAssets.filter((asset) => {
@@ -255,10 +280,19 @@ export function WorkspacePage({ section }: { section: Section }) {
 
   async function startIntervention(item: EvidenceIntervention) {
     try {
-      await data.updateIntervention.mutateAsync({ id: item.id, status: "In progress" })
-      context?.notify("Work marked In progress. NDVI and NDWI analysis has been queued.")
+      await data.updateIntervention.mutateAsync({
+        id: item.id,
+        status: "In progress",
+      })
+      context?.notify(
+        "Work marked In progress. NDVI and NDWI analysis has been queued.",
+      )
     } catch (error) {
-      context?.notify(error instanceof Error ? error.message : "Could not update the intervention.")
+      context?.notify(
+        error instanceof Error
+          ? error.message
+          : "Could not update the intervention.",
+      )
     }
   }
 
@@ -267,7 +301,11 @@ export function WorkspacePage({ section }: { section: Section }) {
       await data.refreshInterventionIndices.mutateAsync(item.id)
       context?.notify("NDVI and NDWI refresh queued.")
     } catch (error) {
-      context?.notify(error instanceof Error ? error.message : "Could not queue the satellite refresh.")
+      context?.notify(
+        error instanceof Error
+          ? error.message
+          : "Could not queue the satellite refresh.",
+      )
     }
   }
 
@@ -301,9 +339,7 @@ export function WorkspacePage({ section }: { section: Section }) {
         ) : section === "watersheds" ? (
           <button
             className="button button-primary"
-            onClick={() =>
-              context?.notify("Not available in this prototype.")
-            }
+            onClick={() => context?.notify("Not available in this prototype.")}
           >
             <Plus size={16} /> Add watershed
           </button>
@@ -378,7 +414,8 @@ export function WorkspacePage({ section }: { section: Section }) {
             </table>
           </div>
           <div className="table-footnote">
-            Illustrative boundary data shown in GeoJSON-compatible WGS84 coordinates.
+            Illustrative boundary data shown in GeoJSON-compatible WGS84
+            coordinates.
           </div>
         </section>
       )}
@@ -502,8 +539,8 @@ export function WorkspacePage({ section }: { section: Section }) {
               <strong>SIMULATED THEMATIC LAYERS</strong>
               <span>
                 {" "}
-                NDVI and NDWI overlays in this workspace are illustrative
-                sample data, not environmental findings.
+                NDVI and NDWI overlays in this workspace are illustrative sample
+                data, not environmental findings.
               </span>
             </span>
             <Link to="/map">
@@ -703,9 +740,9 @@ export function WorkspacePage({ section }: { section: Section }) {
           <section className="panel analysis-note">
             <CircleHelp size={17} />
             <span>
-              <strong>Future analysis pipeline</strong> · DEM hydrology,
-              satellite time series, land cover, slope and change detection are
-              planned for the FastAPI/Celery/Google Earth Engine integration.
+              <strong>Satellite worker</strong> · NDVI and NDWI jobs are
+              processed asynchronously from Sentinel-2 L2A via Element84 Earth
+              Search. Results depend on available cloud-free scenes.
             </span>
           </section>
         </>
@@ -715,10 +752,16 @@ export function WorkspacePage({ section }: { section: Section }) {
         <section className="panel workspace-table-panel">
           <div className="table-toolbar">
             <div className="table-result-count">
-              {visibleInterventions.length} {interventionFilter === "Active" ? "active" : ""} intervention
-              {visibleInterventions.length === 1 ? "" : "s"} · {activeWatershed?.name}
+              {visibleInterventions.length}{" "}
+              {interventionFilter === "Active" ? "active" : ""} intervention
+              {visibleInterventions.length === 1 ? "" : "s"} ·{" "}
+              {activeWatershed?.name}
             </div>
-            <div className="segmented-control" role="group" aria-label="Intervention filter">
+            <div
+              className="segmented-control"
+              role="group"
+              aria-label="Intervention filter"
+            >
               {(["Active", "All"] as const).map((option) => (
                 <button
                   key={option}
@@ -738,86 +781,145 @@ export function WorkspacePage({ section }: { section: Section }) {
               <Plus size={15} /> Add intervention
             </button>
           </div>
+          {evidenceQuery.isLoading && (
+            <p role="status">Loading watershed interventions…</p>
+          )}
+          {evidenceQuery.isError && (
+            <div className="empty-state" role="alert">
+              <strong>Could not load interventions</strong>
+              <span>{evidenceQuery.error.message}</span>
+              <button
+                className="button button-secondary button-small"
+                type="button"
+                disabled={evidenceQuery.isFetching}
+                onClick={() => void evidenceQuery.refetch()}
+              >
+                <RefreshCw size={14} /> Retry
+              </button>
+            </div>
+          )}
           {showInterventionForm && activeWatershed && (
             <form
               className="intervention-create-form"
               onSubmit={(event) => {
                 event.preventDefault()
-                void data.createIntervention.mutateAsync({
-                  watershedId: activeWatershed.id,
-                  name: interventionName,
-                  type: interventionType,
-                  status: interventionStatus,
-                  ...(interventionInstalledAt ? { installedAt: interventionInstalledAt } : {}),
-                }).then(() => {
-                  setShowInterventionForm(false)
-                  setInterventionName("")
-                  setInterventionType("")
-                  context?.notify("Intervention added.")
-                }).catch((error: unknown) => {
-                  context?.notify(error instanceof Error ? error.message : "Could not add intervention.")
-                })
+                void data.createIntervention
+                  .mutateAsync({
+                    watershedId: activeWatershed.id,
+                    name: interventionName,
+                    type: interventionType,
+                    status: interventionStatus,
+                    ...(interventionInstalledAt
+                      ? { installedAt: interventionInstalledAt }
+                      : {}),
+                  })
+                  .then(() => {
+                    setShowInterventionForm(false)
+                    setInterventionName("")
+                    setInterventionType("")
+                    if (interventionStatus !== "In progress") {
+                      setInterventionFilter("All")
+                    }
+                    context?.notify("Intervention added.")
+                  })
+                  .catch((error: unknown) => {
+                    context?.notify(
+                      error instanceof Error
+                        ? error.message
+                        : "Could not add intervention.",
+                    )
+                  })
               }}
             >
               <label>
                 Intervention name
-                <input required value={interventionName} onChange={(event) => setInterventionName(event.target.value)} />
+                <input
+                  required
+                  value={interventionName}
+                  onChange={(event) => setInterventionName(event.target.value)}
+                />
               </label>
               <label>
                 Type
-                <input required value={interventionType} onChange={(event) => setInterventionType(event.target.value)} />
+                <input
+                  required
+                  value={interventionType}
+                  onChange={(event) => setInterventionType(event.target.value)}
+                />
               </label>
               <label>
                 Status
-                <select value={interventionStatus} onChange={(event) => setInterventionStatus(event.target.value as Intervention["status"])}>
+                <select
+                  value={interventionStatus}
+                  onChange={(event) =>
+                    setInterventionStatus(
+                      event.target.value as Intervention["status"],
+                    )
+                  }
+                >
                   <option>Planned</option>
                   <option>In progress</option>
                   <option>Completed</option>
                 </select>
               </label>
               <label>
-                Installation date{interventionStatus === "Completed" ? " (required)" : ""}
+                Installation date
+                {interventionStatus === "Completed" ? " (required)" : ""}
                 <input
                   type="date"
                   required={interventionStatus === "Completed"}
                   value={interventionInstalledAt}
-                  onChange={(event) => setInterventionInstalledAt(event.target.value)}
+                  onChange={(event) =>
+                    setInterventionInstalledAt(event.target.value)
+                  }
                 />
               </label>
-              <button className="button button-primary button-small" type="submit" disabled={data.createIntervention.isPending}>
+              <button
+                className="button button-primary button-small"
+                type="submit"
+                disabled={data.createIntervention.isPending}
+              >
                 Save intervention
               </button>
             </form>
           )}
-          <div className="intervention-grid">
-            {visibleInterventions.map((item) => (
-              <InterventionCard
-                key={item.id}
-                item={{
-                  ...item,
-                  name: item.name,
-                  village: item.village,
-                }}
-                canEdit={canEditInterventions}
-                busy={data.updateIntervention.isPending || data.refreshInterventionIndices.isPending}
-                onStart={startIntervention}
-                onRefresh={refreshInterventionIndices}
-              />
-            ))}
-          </div>
-          {!visibleInterventions.length && (
-            <div className="empty-state">
-              <Activity size={22} />
-              <strong>
-                {interventionFilter === "Active"
-                  ? "No active watershed development work"
-                  : "No interventions recorded"}
-              </strong>
-              <span>
-                Save work as <b>In progress</b> to track it here with NDVI and NDWI from satellite imagery.
-              </span>
+          {!evidenceQuery.isLoading && !evidenceQuery.isError && (
+            <div className="intervention-grid">
+              {visibleInterventions.map((item) => (
+                <InterventionCard
+                  key={item.id}
+                  item={{
+                    ...item,
+                    name: item.name,
+                    village: item.village,
+                  }}
+                  canEdit={canEditInterventions}
+                  busy={
+                    data.updateIntervention.isPending ||
+                    data.refreshInterventionIndices.isPending
+                  }
+                  onStart={startIntervention}
+                  onRefresh={refreshInterventionIndices}
+                />
+              ))}
             </div>
           )}
+          {!evidenceQuery.isLoading &&
+            !evidenceQuery.isError &&
+            !visibleInterventions.length && (
+              <div className="empty-state">
+                <Activity size={22} />
+                <strong>
+                  {interventionFilter === "Active"
+                    ? "No active watershed development work"
+                    : "No interventions recorded"}
+                </strong>
+                <span>
+                  Save work as <b>In progress</b> to track it here with NDVI and
+                  NDWI from satellite imagery.
+                </span>
+              </div>
+            )}
         </section>
       )}
 
@@ -827,7 +929,9 @@ export function WorkspacePage({ section }: { section: Section }) {
             <div className="table-toolbar">
               <div>
                 <strong className="panel-toolbar-title">Report library</strong>
-                <span className="table-result-count">{(data.reports.data ?? []).length} reports</span>
+                <span className="table-result-count">
+                  {(data.reports.data ?? []).length} reports
+                </span>
               </div>
               <button
                 className="button button-primary button-small"
@@ -839,14 +943,30 @@ export function WorkspacePage({ section }: { section: Section }) {
             </div>
             <div className="data-table-wrap">
               <table className="data-table">
-                <thead><tr><th>REPORT</th><th>TYPE</th><th>CREATED</th><th>STATUS</th></tr></thead>
+                <thead>
+                  <tr>
+                    <th>REPORT</th>
+                    <th>TYPE</th>
+                    <th>CREATED</th>
+                    <th>STATUS</th>
+                  </tr>
+                </thead>
                 <tbody>
                   {(data.reports.data ?? []).map((report) => (
                     <tr key={report.id}>
-                      <td><span className="report-file-icon"><FileBarChart2 size={17} /></span><span className="report-name">{report.name}</span></td>
+                      <td>
+                        <span className="report-file-icon">
+                          <FileBarChart2 size={17} />
+                        </span>
+                        <span className="report-name">{report.name}</span>
+                      </td>
                       <td>{report.type}</td>
                       <td>{report.createdAt}</td>
-                      <td><span className="status-pill status-green">{report.status}</span></td>
+                      <td>
+                        <span className="status-pill status-green">
+                          {report.status}
+                        </span>
+                      </td>
                     </tr>
                   ))}
                 </tbody>
@@ -857,19 +977,32 @@ export function WorkspacePage({ section }: { section: Section }) {
             <section className="panel watershed-report-result">
               <div className="table-toolbar">
                 <div>
-                  <strong className="panel-toolbar-title">Validated report · {generatedReport.factSet.subject}</strong>
-                  <span className="table-result-count">Saved {new Date(generatedReport.createdAt).toLocaleString()}</span>
+                  <strong className="panel-toolbar-title">
+                    Validated report · {generatedReport.factSet.subject}
+                  </strong>
+                  <span className="table-result-count">
+                    Saved {new Date(generatedReport.createdAt).toLocaleString()}
+                  </span>
                 </div>
                 <button
                   className="icon-button small-icon"
                   aria-label="Download saved watershed report PDF"
                   title="Download saved report PDF"
                   onClick={() => exportWatershedReport(generatedReport)}
-                ><Download size={15} /></button>
+                >
+                  <Download size={15} />
+                </button>
               </div>
-              <section className="watershed-report-gaps" aria-labelledby="report-gaps-title">
+              <section
+                className="watershed-report-gaps"
+                aria-labelledby="report-gaps-title"
+              >
                 <h2 id="report-gaps-title">Data gaps</h2>
-                <ul>{generatedReport.gaps.map((item) => <li key={item.code}>{item.text}</li>)}</ul>
+                <ul>
+                  {generatedReport.gaps.map((item) => (
+                    <li key={item.code}>{item.text}</li>
+                  ))}
+                </ul>
               </section>
               <div className="watershed-report-claims">
                 <h2>Claims</h2>
@@ -878,14 +1011,20 @@ export function WorkspacePage({ section }: { section: Section }) {
                     <p>{claim.text}</p>
                     <div className="citation-list">
                       {claim.factIds.map((factId) => {
-                        const fact = generatedReport.factSet.facts.find((item) => item.id === factId)
+                        const fact = generatedReport.factSet.facts.find(
+                          (item) => item.id === factId,
+                        )
                         if (!fact) return null
                         return (
                           <button
                             key={factId}
                             className="citation-chip"
                             type="button"
-                            onClick={() => setExpandedFactId(expandedFactId === factId ? undefined : factId)}
+                            onClick={() =>
+                              setExpandedFactId(
+                                expandedFactId === factId ? undefined : factId,
+                              )
+                            }
                             aria-expanded={expandedFactId === factId}
                           >
                             {fact.label} · {fact.status}
@@ -895,11 +1034,17 @@ export function WorkspacePage({ section }: { section: Section }) {
                     </div>
                     {claim.factIds.map((factId) => {
                       if (expandedFactId !== factId) return null
-                      const fact = generatedReport.factSet.facts.find((item) => item.id === factId)
+                      const fact = generatedReport.factSet.facts.find(
+                        (item) => item.id === factId,
+                      )
                       return fact ? (
                         <div className="citation-records" key={factId}>
                           <strong>{fact.label}</strong>
-                          <span>{fact.recordIds.length ? fact.recordIds.join(", ") : "No source records"}</span>
+                          <span>
+                            {fact.recordIds.length
+                              ? fact.recordIds.join(", ")
+                              : "No source records"}
+                          </span>
                         </div>
                       ) : null
                     })}
@@ -992,7 +1137,9 @@ export function WorkspacePage({ section }: { section: Section }) {
                 <strong>Mode</strong>
                 <small>Data source for this workspace</small>
               </span>
-              <span className="status-pill status-amber">SAMPLE · MOCK API</span>
+              <span className="status-pill status-amber">
+                SAMPLE · MOCK API
+              </span>
             </div>
             <div className="setting-line">
               <span>
@@ -1096,11 +1243,11 @@ function AssetTable({
   watersheds,
   canVerify,
   onVerify,
+  /** Only GIS Analysts and Administrators may verify (role preview). */
 }: {
   assets: Asset[]
   observations: FieldObservation[]
   watersheds: Watershed[]
-  /** Only GIS Analysts and Administrators may verify (role preview). */
   canVerify: boolean
   onVerify: (asset: Asset) => void
 }) {
@@ -1230,7 +1377,10 @@ function AssetTable({
           // An observation either created this asset (same id) or was linked to
           // it later; show the most recent one for the asset.
           const observation = observations
-            .filter((item) => item.id === activeAsset.id || item.assetId === activeAsset.id)
+            .filter(
+              (item) =>
+                item.id === activeAsset.id || item.assetId === activeAsset.id,
+            )
             .sort((a, b) => a.createdAt.localeCompare(b.createdAt))
             .at(-1)
           if (!observation) return null
@@ -1253,8 +1403,7 @@ function AssetTable({
                     ?.demo
                 }
                 photoContentConfirmed={
-                  observation.photoContentReview?.status ===
-                  "officer-confirmed"
+                  observation.photoContentReview?.status === "officer-confirmed"
                 }
               />
               <div className="hs-audit">
@@ -1262,7 +1411,9 @@ function AssetTable({
                 <ul>
                   {observation.auditHistory.map((entry, index) => (
                     <li key={index}>
-                      <small>{entry.timestamp.slice(0, 19).replace("T", " ")}</small>{" "}
+                      <small>
+                        {entry.timestamp.slice(0, 19).replace("T", " ")}
+                      </small>{" "}
                       {entry.action} · {entry.actor}
                     </li>
                   ))}

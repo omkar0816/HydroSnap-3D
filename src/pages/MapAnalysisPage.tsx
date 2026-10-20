@@ -1,4 +1,11 @@
-import { useCallback, useContext, useMemo, useState } from "react"
+import {
+  useCallback,
+  useContext,
+  useEffect,
+  useMemo,
+  useRef,
+  useState,
+} from "react"
 import {
   Activity,
   ChevronDown,
@@ -15,7 +22,7 @@ import {
   Waves,
   X,
 } from "lucide-react"
-import { Link } from "react-router-dom"
+import { Link, useLocation, useNavigate } from "react-router-dom"
 import { AppContext } from "@/App"
 import { useHydroSnap } from "@/hooks/useHydroSnap"
 import { useWatershedEvidence } from "@/hooks/useWatershedEvidence"
@@ -31,9 +38,7 @@ import { bhuvanCatalog } from "@/config/bhuvan"
 import type { BhuvanLayerState } from "@/utils/bhuvanLayers"
 import { WatershedPanel } from "@/components/maps/WatershedPanel"
 import { DicraDatasetPanel } from "@/components/maps/DicraDatasetPanel"
-import {
-  WatershedSatellitePanel,
-} from "@/components/maps/WatershedSatellitePanel"
+import { WatershedSatellitePanel } from "@/components/maps/WatershedSatellitePanel"
 import { downloadAssetsCsv, downloadAssetsGeoJson } from "@/utils/exporters"
 import { geometryBounds, type Bounds } from "@/utils/geo"
 import { resolveWatershed } from "@/services/spatialService"
@@ -106,6 +111,8 @@ const defaultVisibleLayers = {
 
 export function MapAnalysisPage() {
   const context = useContext(AppContext)
+  const location = useLocation()
+  const navigate = useNavigate()
   const data = useHydroSnap({
     loadAssets: false,
     loadObservations: false,
@@ -186,6 +193,11 @@ export function MapAnalysisPage() {
     ),
   }))
   const [pickedAsset, setSelectedAsset] = useState<Asset>()
+  const [requestedAsset, setRequestedAsset] = useState<{
+    id: string
+    watershedId: string
+  }>()
+  const handledMapTarget = useRef<string | undefined>(undefined)
   const selectedAsset =
     pickedAsset && timelineAssets.some(({ id }) => id === pickedAsset.id)
       ? pickedAsset
@@ -236,6 +248,86 @@ export function MapAnalysisPage() {
     setFocusBounds(geometryBounds(target.boundary.geometry))
     setWatershedQuery("")
   }
+
+  useEffect(() => {
+    const params = new URLSearchParams(location.search)
+    const hasMapTarget =
+      params.has("watershedId") ||
+      params.has("assetId") ||
+      params.has("lng") ||
+      params.has("lat")
+    if (!hasMapTarget || handledMapTarget.current === location.search) return
+    if (!data.watersheds.isSuccess) return
+
+    handledMapTarget.current = location.search
+    const requestedWatershedId = params.get("watershedId")
+    const targetWatershed = requestedWatershedId
+      ? watersheds.find(({ id }) => id === requestedWatershedId)
+      : (watersheds.find(({ id }) => id === context?.watershedId) ??
+        watersheds[0])
+    if (requestedWatershedId && !targetWatershed) {
+      context?.notify(
+        "The requested watershed is not available in this workspace.",
+      )
+    } else if (targetWatershed) {
+      openWatershed(targetWatershed.id)
+    }
+
+    const longitude = Number(params.get("lng"))
+    const latitude = Number(params.get("lat"))
+    if (
+      params.has("lng") &&
+      params.has("lat") &&
+      Number.isFinite(longitude) &&
+      Number.isFinite(latitude) &&
+      longitude >= -180 &&
+      longitude <= 180 &&
+      latitude >= -90 &&
+      latitude <= 90
+    ) {
+      setFocusPosition([longitude, latitude])
+      setTimelineEnabled(false)
+    }
+
+    const assetId = params.get("assetId")
+    const watershedId = targetWatershed?.id ?? requestedWatershedId
+    if (assetId && watershedId) setRequestedAsset({ id: assetId, watershedId })
+    navigate(location.pathname, { replace: true })
+  }, [
+    context,
+    data.watersheds.isSuccess,
+    location.pathname,
+    location.search,
+    navigate,
+    watersheds,
+  ])
+
+  useEffect(() => {
+    if (
+      !requestedAsset ||
+      evidenceQuery.data?.watershed.id !== requestedAsset.watershedId ||
+      evidenceQuery.isFetching
+    )
+      return
+    const targetAsset = allAssets.find(({ id }) => id === requestedAsset.id)
+    if (targetAsset) {
+      setSelectedAsset(targetAsset)
+      setFocusPosition(targetAsset.location.coordinates)
+      setTimelineEnabled(false)
+    } else if (evidenceQuery.isSuccess) {
+      context?.notify("The requested asset is not available in this watershed.")
+    } else {
+      return
+    }
+    setRequestedAsset(undefined)
+  }, [
+    allAssets,
+    context,
+    evidenceQuery.data?.watershed.id,
+    evidenceQuery.isFetching,
+    evidenceQuery.isSuccess,
+    requestedAsset,
+  ])
 
   function whichWatershed() {
     if (!navigator.geolocation) {
@@ -571,7 +663,10 @@ export function MapAnalysisPage() {
               streams={streamGeometry}
               ndviOverlay={ndviGeometry}
               ndwiOverlay={ndwiGeometry}
-              onSelectAsset={setSelectedAsset}
+              onSelectAsset={(asset) => {
+                setSelectedAsset(asset)
+                setFocusPosition(asset.location.coordinates)
+              }}
             />
             <div className="map-layer-menu">
               <button
@@ -716,16 +811,14 @@ export function MapAnalysisPage() {
               {watershed?.district ?? "—"} district
             </div>
             <div className="map-data-warning">
-              <Activity size={13} />{" "}
-              ILLUSTRATIVE DATA · SAMPLE FEATURES · NDVI/NDWI OVERLAYS SIMULATED
+              <Activity size={13} /> ILLUSTRATIVE DATA · SAMPLE FEATURES ·
+              NDVI/NDWI OVERLAYS SIMULATED
             </div>
           </div>
         </section>
       </div>
       <div className="map-satellite-dock">
-        {watershed && (
-          <WatershedSatellitePanel watershedId={watershed.id} />
-        )}
+        {watershed && <WatershedSatellitePanel watershedId={watershed.id} />}
         <div className="mt-3">
           <DicraDatasetPanel
             watershedName={watershed?.name}

@@ -223,7 +223,7 @@ export function InterventionCard({
           <strong>Satellite method</strong>
           <span>
             {item.monitoring?.measurements[0]?.method ??
-              "Sentinel-2 L2A median composite via Google Earth Engine; current window is the latest 90 days compared with the same dates a year earlier."}
+              "Sentinel-2 L2A median composite via Element84 Earth Search STAC; current window is the latest 90 days compared with the same dates a year earlier."}
           </span>
           <span>
             Differences are descriptive only; rainfall and season are not

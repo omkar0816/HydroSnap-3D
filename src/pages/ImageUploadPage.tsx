@@ -23,6 +23,8 @@ import { AppContext } from "@/App"
 import { WatershedMap } from "@/components/maps/WatershedMap"
 import { useHydroSnap } from "@/hooks/useHydroSnap"
 import { TrustPanel } from "@/components/evidence/TrustPanel"
+import { getQueued } from "@/services/offlineStore"
+import { syncNow } from "@/services/syncService"
 import { findAssetCandidates } from "@/utils/assetMatch"
 import { distanceMeters, toGeoLocation } from "@/utils/geo"
 import {
@@ -81,6 +83,12 @@ export function ImageUploadPage() {
   const [error, setError] = useState("")
   const [showLocationPicker, setShowLocationPicker] = useState(false)
   const [saved, setSaved] = useState(false)
+  const [syncWarning, setSyncWarning] = useState("")
+  const [savedMapTarget, setSavedMapTarget] = useState<{
+    watershedId: string
+    assetId: string
+    coordinates: WGS84Position
+  }>()
   const [assetChoice, setAssetChoice] = useState<string>()
   const [exifSummary, setExifSummary] = useState<ExifSummary>()
   const [imageHash, setImageHash] = useState<string>()
@@ -323,6 +331,8 @@ export function ImageUploadPage() {
     setExtracting(false)
     setError("")
     setSaved(false)
+    setSyncWarning("")
+    setSavedMapTarget(undefined)
     setAssetChoice(undefined)
     setExifSummary(undefined)
     setImageHash(undefined)
@@ -528,6 +538,7 @@ export function ImageUploadPage() {
 
   async function submit(values: FormValues) {
     setError("")
+    setSyncWarning("")
     setSaved(false)
     if (!file) {
       setError("Add a field image before saving the observation.")
@@ -658,11 +669,45 @@ export function ImageUploadPage() {
         auditHistory,
       }
       await saveObservation.mutateAsync(observation)
+      setSavedMapTarget({
+        watershedId: values.watershedId,
+        assetId: linkedAsset?.asset.id ?? id,
+        coordinates: confirmedLocation.coordinates,
+      })
+      let syncFailure: string | undefined
+      let queueRecord
+      try {
+        if (navigator.onLine) await syncNow(true)
+        queueRecord = await getQueued(id)
+      } catch (syncError) {
+        syncFailure =
+          syncError instanceof Error
+            ? syncError.message
+            : "Could not check the upload sync status."
+      }
+      if (
+        queueRecord?.syncStatus === "failed" ||
+        queueRecord?.syncStatus === "rejected"
+      ) {
+        syncFailure =
+          queueRecord.lastError ??
+          "The API did not accept the field observation."
+      }
+      if (
+        navigator.onLine &&
+        queueRecord?.syncStatus !== "synced" &&
+        !syncFailure
+      ) {
+        syncFailure = "The API upload has not been confirmed yet."
+      }
+      if (syncFailure) setSyncWarning(syncFailure)
       setSaved(true)
       context?.notify(
-        navigator.onLine
-          ? "Field observation saved and queued for sync. It is visible on the map."
-          : "Saved on this device. It will sync automatically when you are back online.",
+        syncFailure
+          ? `Saved on this device; API sync needs attention: ${syncFailure}`
+          : queueRecord?.syncStatus === "synced"
+            ? "Field observation synced successfully and is pending officer review."
+            : "Saved on this device. It will sync automatically when you are back online.",
       )
     } catch (saveError) {
       setError(
@@ -705,6 +750,12 @@ export function ImageUploadPage() {
             Your image and confirmed location have been saved as field evidence
             and added to the watershed map, pending verification.
           </p>
+          {syncWarning && (
+            <p className="status-red" role="alert">
+              The record remains saved on this device, but API sync was not
+              confirmed: {syncWarning}
+            </p>
+          )}
           <div className="success-summary">
             <img src={preview} alt="Submitted field evidence" />
             <div>
@@ -720,7 +771,19 @@ export function ImageUploadPage() {
             <span className="status-pill status-amber">Pending review</span>
           </div>
           <div className="success-actions">
-            <Link to="/map" className="button button-primary">
+            <Link
+              to={
+                savedMapTarget
+                  ? `/map?${new URLSearchParams({
+                      watershedId: savedMapTarget.watershedId,
+                      assetId: savedMapTarget.assetId,
+                      lng: String(savedMapTarget.coordinates[0]),
+                      lat: String(savedMapTarget.coordinates[1]),
+                    }).toString()}`
+                  : "/map"
+              }
+              className="button button-primary"
+            >
               View on map <ArrowRight size={16} />
             </Link>
             <button
@@ -1247,7 +1310,9 @@ export function ImageUploadPage() {
                 selected location and watershed. An officer must inspect the
                 actual image and confirm its content before it can be saved.
               </p>
-              <span className="future-badge">LOCAL RULE CHECKS · NO AI API</span>
+              <span className="future-badge">
+                LOCAL RULE CHECKS · NO AI API
+              </span>
             </section>
             <section className="panel upload-hint-panel offline-hint">
               <div className="upload-hint-icon">
