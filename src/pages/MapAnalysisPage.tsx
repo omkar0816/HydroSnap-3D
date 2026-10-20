@@ -543,6 +543,24 @@ export function MapAnalysisPage() {
               </button>
             </div>
           </div>
+          {timelineSummary && (
+            <MapTimeline
+              steps={timelineSteps}
+              index={timelineIndex}
+              onIndexChange={handleTimelineIndex}
+              enabled={timelineEnabled}
+              onEnabledChange={setTimelineEnabled}
+              interval={timelineInterval}
+              onIntervalChange={changeTimelineInterval}
+              newOnly={newOnly}
+              onNewOnlyChange={setNewOnly}
+              summary={timelineSummary}
+              onFocusAsset={(asset) => {
+                setSelectedAsset(asset)
+                setFocusPosition(asset.location.coordinates)
+              }}
+            />
+          )}
           <div className="map-map-holder">
             <WatershedMap
               assets={timelineAssets}
@@ -633,24 +651,6 @@ export function MapAnalysisPage() {
               </div>
             )}
           </div>
-          {timelineSummary && (
-            <MapTimeline
-              steps={timelineSteps}
-              index={timelineIndex}
-              onIndexChange={handleTimelineIndex}
-              enabled={timelineEnabled}
-              onEnabledChange={setTimelineEnabled}
-              interval={timelineInterval}
-              onIntervalChange={changeTimelineInterval}
-              newOnly={newOnly}
-              onNewOnlyChange={setNewOnly}
-              summary={timelineSummary}
-              onFocusAsset={(asset) => {
-                setSelectedAsset(asset)
-                setFocusPosition(asset.location.coordinates)
-              }}
-            />
-          )}
           <div className="map-bottom-bar">
             <div>
               <span className="bottom-dot" /> {watershed?.code ?? "—"} <i>·</i>{" "}
