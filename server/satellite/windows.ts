@@ -16,6 +16,26 @@ export type SeasonalWindows = {
   current: AnalysisWindow | null
 }
 
+/** Latest complete 90-day window compared with the same dates one year earlier. */
+export function activeWorkWindows(asOf = new Date()): SeasonalWindows {
+  const currentEnd = new Date(
+    Date.UTC(asOf.getUTCFullYear(), asOf.getUTCMonth(), asOf.getUTCDate() - 1),
+  )
+  const currentStart = new Date(currentEnd)
+  currentStart.setUTCDate(currentStart.getUTCDate() - 89)
+
+  const baselineStart = new Date(currentStart)
+  baselineStart.setUTCFullYear(baselineStart.getUTCFullYear() - 1)
+  const baselineEnd = new Date(currentEnd)
+  baselineEnd.setUTCFullYear(baselineEnd.getUTCFullYear() - 1)
+
+  const toDate = (date: Date) => date.toISOString().slice(0, 10)
+  return {
+    baseline: { start: toDate(baselineStart), end: toDate(baselineEnd) },
+    current: { start: toDate(currentStart), end: toDate(currentEnd) },
+  }
+}
+
 export const DEFAULT_SEASON: Season = {
   startMonth: 11,
   startDay: 1,

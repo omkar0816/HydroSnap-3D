@@ -29,6 +29,7 @@ import { useHydroSnap } from "@/hooks/useHydroSnap"
 import { useWatershedEvidence } from "@/hooks/useWatershedEvidence"
 import { DemoBadge } from "@/components/common/DemoBadge"
 import { TrustPanel } from "@/components/evidence/TrustPanel"
+import { InterventionCard, type EvidenceIntervention } from "@/components/interventions/InterventionCard"
 import { WatershedSatellitePanel } from "@/components/maps/WatershedSatellitePanel"
 import { downloadObservationAudit } from "@/utils/exporters"
 import {
@@ -125,6 +126,7 @@ export function WorkspacePage({ section }: { section: Section }) {
   )
   const [statusFilter, setStatusFilter] = useState("All statuses")
   const [assetTypeFilter, setAssetTypeFilter] = useState("All types")
+  const [interventionFilter, setInterventionFilter] = useState<"Active" | "All">("Active")
   const [reportAssetId, setReportAssetId] = useState("")
     const [generatedReport, setGeneratedReport] = useState<SavedWatershedReport>()
     const [expandedFactId, setExpandedFactId] = useState<string>()
@@ -788,22 +790,18 @@ export function WorkspacePage({ section }: { section: Section }) {
             </form>
           )}
           <div className="intervention-grid">
-            {(evidenceQuery.data?.interventions ?? []).map((item) => (
+            {visibleInterventions.map((item) => (
               <InterventionCard
                 key={item.id}
                 item={{
-                  id: item.id,
-                  name: item.type,
-                  type: item.type,
-                  watershedId: activeWatershed?.id ?? "",
-                  village: "",
-                  status: item.status as Intervention["status"],
-                  progress: item.progress ?? 0,
-                  budget: 0,
-                  dueDate: item.installedAt ?? item.recordedAt.slice(0, 10),
-                  assetId: item.assetId ?? undefined,
-                  installedAt: item.installedAt ?? undefined,
+                  ...item,
+                  name: item.name,
+                  village: item.village,
                 }}
+                canEdit={canEditInterventions}
+                busy={data.updateIntervention.isPending || data.refreshInterventionIndices.isPending}
+                onStart={startIntervention}
+                onRefresh={refreshInterventionIndices}
               />
             ))}
           </div>

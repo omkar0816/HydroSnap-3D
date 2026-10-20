@@ -15,7 +15,13 @@ import { generateWatershedReport, reportRequestSchema, ReportGenerationError } f
 import { LlmError } from "./llm.ts"
 import { parseImageExif, verifyUpload } from "./verification.ts"
 import { analysisRequestSchema } from "./satellite/request.ts"
-import { interventionWindows, seasonMatchedWindows, DEFAULT_SEASON } from "./satellite/windows.ts"
+import {
+  activeWorkWindows,
+  interventionWindows,
+  seasonMatchedWindows,
+  DEFAULT_SEASON,
+} from "./satellite/windows.ts"
+import { enqueueInterventionIndices } from "./satellite/jobs.ts"
 import { createDicraClient, DicraClientError } from "./dicra.ts"
 import { serverEnv } from "./env.ts"
 import { dicraSearchRequestSchema } from "../shared/dicra.ts"
@@ -1087,6 +1093,15 @@ app.post("/api/v1/interventions", requireOfficer, async (request, response) => {
       [id, body.status, request.user!.id],
     )
     await client.query("COMMIT")
+    if (body.status === "In progress" && !payload.demo) {
+      await queueInterventionMonitoring(
+        id,
+        body.watershedId,
+        body.assetId ?? null,
+        body.installedAt ?? null,
+        request.user!.id,
+      )
+    }
     response.status(201).json(payload)
   } catch (error) {
     await client.query("ROLLBACK")
@@ -1103,12 +1118,14 @@ app.patch("/api/v1/interventions/:id", requireOfficer, async (request, response)
     await client.query("BEGIN")
     const existing = await client.query<{
       id: string
+      watershed_id: string
+      asset_id: string | null
       payload: Record<string, unknown>
       status: string
       installed_at: string | null
       demo: boolean
     }>(
-      `SELECT id, payload, status, installed_at::text, demo
+      `SELECT id, watershed_id, asset_id, payload, status, installed_at::text, demo
        FROM interventions WHERE id = $1 FOR UPDATE`,
       [request.params.id],
     )
@@ -1138,6 +1155,15 @@ app.patch("/api/v1/interventions/:id", requireOfficer, async (request, response)
       )
     }
     await client.query("COMMIT")
+    if (body.status === "In progress" && row.status !== "In progress" && !row.demo) {
+      await queueInterventionMonitoring(
+        row.id,
+        row.watershed_id,
+        row.asset_id,
+        installedAt,
+        request.user!.id,
+      )
+    }
     response.json({ ...payload, demo: row.demo })
   } catch (error) {
     await client.query("ROLLBACK")

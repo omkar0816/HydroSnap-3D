@@ -88,7 +88,9 @@ export type Evidence = {
   interventions: Array<{
     id: string
     assetId: string | null
+    name: string
     type: string
+    village: string
     status: string
     installedAt: string | null
     progress: number | null
@@ -238,7 +240,9 @@ export async function loadEvidence(
     db.query<{
       id: string
       assetId: string | null
+      name: string
       type: string
+      village: string
       status: string
       installedAt: string | null
       progress: number | null
@@ -248,7 +252,9 @@ export async function loadEvidence(
       demo: boolean
     }>(
       `SELECT id, asset_id AS "assetId",
+              COALESCE(payload->>'name', payload->>'type', '') AS name,
               COALESCE(payload->>'type', payload->>'name', '') AS type,
+              COALESCE(payload->>'village', '') AS village,
               status, installed_at::text AS "installedAt",
               NULLIF(payload->>'progress', '')::double precision AS progress,
               recorded_at::text AS "recordedAt", source,

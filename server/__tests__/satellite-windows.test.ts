@@ -1,5 +1,6 @@
 import { describe, expect, it } from "vitest"
 import {
+  activeWorkWindows,
   interventionWindows,
   latestCompleteSeason,
   seasonMatchedWindows,
@@ -7,6 +8,13 @@ import {
 } from "../satellite/windows.ts"
 
 describe("satellite season windows", () => {
+  it("selects the latest complete 90-day window and its one-year baseline", () => {
+    expect(activeWorkWindows(new Date("2026-10-20T00:00:00Z"))).toEqual({
+      baseline: { start: "2025-07-22", end: "2025-10-19" },
+      current: { start: "2026-07-22", end: "2026-10-19" },
+    })
+  })
+
   it("selects the latest complete Nov-Dec season and its prior-year baseline", () => {
     expect(seasonMatchedWindows(new Date("2026-10-20T00:00:00Z"))).toEqual({
       baseline: { start: "2024-11-01", end: "2024-12-31" },

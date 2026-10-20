@@ -119,6 +119,26 @@ export function useHydroSnap(options: {
       void queryClient.invalidateQueries({ queryKey: ["watershed-evidence"] })
     },
   })
+  const updateIntervention = useMutation({
+    mutationFn: ({ id, ...update }: {
+      id: string
+      status: Intervention["status"]
+      installedAt?: string
+      note?: string
+    }) => hydrosnapService.updateIntervention(id, update),
+    onSuccess: () => {
+      void queryClient.invalidateQueries({ queryKey: ["interventions"] })
+      void queryClient.invalidateQueries({ queryKey: ["watershed-evidence"] })
+      void queryClient.invalidateQueries({ queryKey: ["jobs"] })
+    },
+  })
+  const refreshInterventionIndices = useMutation({
+    mutationFn: hydrosnapService.refreshInterventionIndices,
+    onSuccess: () => {
+      void queryClient.invalidateQueries({ queryKey: ["watershed-evidence"] })
+      void queryClient.invalidateQueries({ queryKey: ["jobs"] })
+    },
+  })
 
   return {
     currentUser: currentUserQuery,
@@ -137,5 +157,7 @@ export function useHydroSnap(options: {
     createAnalysis,
     generateWatershedReport,
     createIntervention,
+    updateIntervention,
+    refreshInterventionIndices,
   }
 }

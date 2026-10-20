@@ -33,7 +33,6 @@ import { WatershedPanel } from "@/components/maps/WatershedPanel"
 import { DicraDatasetPanel } from "@/components/maps/DicraDatasetPanel"
 import {
   WatershedSatellitePanel,
-  type SatelliteOverlay,
 } from "@/components/maps/WatershedSatellitePanel"
 import { downloadAssetsCsv, downloadAssetsGeoJson } from "@/utils/exporters"
 import { geometryBounds, type Bounds } from "@/utils/geo"
@@ -179,7 +178,6 @@ export function MapAnalysisPage() {
     () => polygonLayerGeometry(thematicLayers.find(({ id }) => id === "ndwi")),
     [thematicLayers],
   )
-  const [satelliteOverlay, setSatelliteOverlay] = useState<SatelliteOverlay | null>(null)
   const [basemap, setBasemap] = useState<Basemap>("standard")
   const [bhuvan, setBhuvan] = useState<BhuvanLayerState>(() => ({
     visible: {},
@@ -565,7 +563,6 @@ export function MapAnalysisPage() {
               basemap={basemap}
               imageryDate={imageryDate}
               pilotAnalysis={data.pilotAnalysis.data}
-              satelliteOverlay={satelliteOverlay}
               bhuvan={bhuvan}
               visibleLayers={visibleLayers}
               measure={measure}
@@ -720,19 +717,14 @@ export function MapAnalysisPage() {
             </div>
             <div className="map-data-warning">
               <Activity size={13} />{" "}
-              {satelliteOverlay
-                ? `SENTINEL-2 ${satelliteOverlay.indexType} · ${satelliteOverlay.windowStart} TO ${satelliteOverlay.windowEnd} · MEASURED VIA EARTH ENGINE`
-                : "ILLUSTRATIVE DATA · SAMPLE FEATURES · NDVI/NDWI OVERLAYS SIMULATED"}
+              ILLUSTRATIVE DATA · SAMPLE FEATURES · NDVI/NDWI OVERLAYS SIMULATED
             </div>
           </div>
         </section>
       </div>
       <div className="map-satellite-dock">
         {watershed && (
-          <WatershedSatellitePanel
-            watershedId={watershed.id}
-            onOverlayChange={setSatelliteOverlay}
-          />
+          <WatershedSatellitePanel watershedId={watershed.id} />
         )}
         <div className="mt-3">
           <DicraDatasetPanel

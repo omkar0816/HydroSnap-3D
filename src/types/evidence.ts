@@ -97,7 +97,9 @@ export type WatershedEvidence = {
   interventions: Array<{
     id: string
     assetId: string | null
+    name: string
     type: string
+    village: string
     status: string
     installedAt: string | null
     progress: number | null

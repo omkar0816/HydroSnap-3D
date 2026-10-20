@@ -202,7 +202,7 @@ export function InterventionCard({
             <Play size={12} /> Start work
           </button>
         )}
-        {active && canEdit && (
+        {active && canEdit && !item.demo && (
           <button
             className="button button-secondary button-small"
             disabled={busy}

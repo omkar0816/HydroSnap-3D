@@ -184,7 +184,9 @@ export const hydrosnapService = {
         .map((item) => ({
           id: item.id,
           assetId: null,
+          name: item.name,
           type: item.type,
+          village: item.village,
           status: item.status,
           installedAt: null,
           progress: item.progress,
@@ -344,6 +346,16 @@ export const hydrosnapService = {
     }
     interventionStore = interventionStore.map((item) => item.id === id ? updated : item)
     return updated
+  },
+  refreshInterventionIndices: async (id: string) => {
+    if (env.useMockApi) {
+      throw new Error("Satellite monitoring is unavailable for demo interventions.")
+    }
+    return apiRequest<{
+      jobs: Array<{ id: string; indexType: "NDVI" | "NDWI"; queued: boolean }>
+    }>(`/api/v1/interventions/${encodeURIComponent(id)}/indices/refresh`, {
+      method: "POST",
+    })
   },
   getReports: async () => {
     if (!env.useMockApi) return apiRequest<Report[]>("/api/v1/reports")
