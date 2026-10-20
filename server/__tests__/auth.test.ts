@@ -1,4 +1,10 @@
 import { describe, expect, it, vi, beforeEach } from "vitest"
+
+// server/env.ts no longer falls back to placeholder Supabase values.
+vi.hoisted(() => {
+  process.env.SUPABASE_URL ??= "https://example.supabase.co"
+  process.env.SUPABASE_ANON_KEY ??= "test-anon-key"
+})
 import { createPrivateKey, createPublicKey, generateKeyPairSync } from "node:crypto"
 import { SignJWT, exportJWK } from "jose"
 import {

@@ -1,4 +1,5 @@
 import { env } from "@/config/env"
+import { isSupabaseConfigured, supabase } from "@/lib/supabase"
 
 export class ApiError extends Error {
   constructor(
@@ -11,18 +12,24 @@ export class ApiError extends Error {
   }
 }
 
-function resolveAuthToken(): string | null {
-  const candidates = [
-    "sb-access-token",
-    "access_token",
-    "supabaseAccessToken",
-    "token",
-  ]
-  for (const key of candidates) {
-    const value = localStorage.getItem(key)
-    if (value) return value.replace(/^Bearer\s+/i, "")
+async function resolveAuthToken(): Promise<string | null> {
+  if (!isSupabaseConfigured) return null
+  try {
+    const { data } = await supabase.auth.getSession()
+    return data.session?.access_token ?? null
+  } catch {
+    return null
   }
-  return null
+}
+
+async function refreshAuthToken(): Promise<boolean> {
+  if (!isSupabaseConfigured) return false
+  try {
+    const { data, error } = await supabase.auth.refreshSession()
+    return !error && Boolean(data.session?.access_token)
+  } catch {
+    return false
+  }
 }
 
 export async function apiRequest<T>(
@@ -30,7 +37,7 @@ export async function apiRequest<T>(
   options: RequestInit = {},
   attemptedRefresh = false,
 ): Promise<T> {
-  const authToken = resolveAuthToken()
+  const authToken = await resolveAuthToken()
   const response = await fetch(`${env.apiBaseUrl.replace(/\/$/, "")}${path}`, {
     ...options,
     headers: {
@@ -39,40 +46,19 @@ export async function apiRequest<T>(
       ...options.headers,
     },
   })
-  if (response.status === 401 && authToken && !attemptedRefresh) {
-    try {
-      const refreshToken = localStorage.getItem("sb-refresh-token")
-      if (refreshToken) {
-        const refresh = await fetch(
-          `${env.apiBaseUrl.replace(/\/$/, "")}/auth/v1/token`,
-          {
-            method: "POST",
-            headers: {
-              "Content-Type": "application/json",
-            },
-            body: JSON.stringify({
-              grant_type: "refresh_token",
-              refresh_token: refreshToken,
-            }),
-          },
-        )
-        if (refresh.ok) {
-          const data = await refresh.json()
-          if (typeof data?.access_token === "string") {
-            localStorage.setItem("sb-access-token", data.access_token)
-            return apiRequest<T>(path, options, true)
-          }
-        }
-      }
-    } catch {
-      // Fall through to redirect below.
+  if (response.status === 401) {
+    // Refresh the Supabase session once and retry. Never hard-redirect to
+    // /login: a full page reload with a still-valid persisted session sends
+    // the user straight back, which caused an endless reload loop.
+    if (authToken && !attemptedRefresh && (await refreshAuthToken())) {
+      return apiRequest<T>(path, options, true)
     }
-    window.location.href = "/login"
-    return Promise.reject(new ApiError("Session expired; please sign in again.", 401))
-  }
-  if (response.status === 401 && !attemptedRefresh) {
-    window.location.href = "/login"
-    return Promise.reject(new ApiError("Authentication required.", 401))
+    throw new ApiError(
+      authToken
+        ? "Session expired or the API rejected your token. Sign in again."
+        : "Authentication required.",
+      401,
+    )
   }
   if (!response.ok) {
     const detail = await response.text()

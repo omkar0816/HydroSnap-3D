@@ -5,7 +5,12 @@ function readBoolean(value: string | undefined, fallback: boolean): boolean {
 
 export const env = {
   apiBaseUrl: import.meta.env.VITE_API_BASE_URL ?? "http://localhost:8000",
-  useMockApi: readBoolean(import.meta.env.VITE_USE_MOCK_API, false),
+  // With no API URL configured (e.g. a Vercel deploy without a hosted backend)
+  // default to demo data instead of calling the visitor's own localhost:8000.
+  useMockApi: readBoolean(
+    import.meta.env.VITE_USE_MOCK_API,
+    !import.meta.env.VITE_API_BASE_URL,
+  ),
   /**
    * Optional URL of a .pmtiles file with official watershed boundaries
    * (built by scripts/prepare_watersheds). Empty = demo boundaries only.

@@ -17,15 +17,11 @@ export const serverEnv = {
     "postgresql://hydrosnap:hydrosnap@localhost:5432/hydrosnap"
   ),
 
-  supabaseUrl: required(
-    "SUPABASE_URL",
-    "https://example.supabase.co"
-  ),
+  // No placeholder fallbacks: a missing value must fail loudly instead of
+  // silently verifying tokens against example.supabase.co.
+  supabaseUrl: required("SUPABASE_URL").replace(/\/+$/, ""),
 
-  supabaseAnonKey: required(
-    "SUPABASE_ANON_KEY",
-    "demo-anon-key"
-  ),
+  supabaseAnonKey: required("SUPABASE_ANON_KEY"),
 
   port: Number(process.env.API_PORT ?? 8000),
 
