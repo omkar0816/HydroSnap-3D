@@ -29,7 +29,7 @@ import {
   currentUser,
   watersheds,
 } from "@/services/mock/mockData"
-import { apiRequest } from "@/services/apiClient"
+import { apiBlobUrl, apiRequest } from "@/services/apiClient"
 import { generatePilotSummary as runPilotSummary } from "@/services/aiService"
 import {
   enqueueObservation,
@@ -43,6 +43,13 @@ import { isSupabaseConfigured } from "@/lib/supabase"
 import { getCurrentOfficerUser } from "@/services/authService"
 
 let observationStore: FieldObservation[] = []
+export type AnalysisOptions = {
+  assetId?: string
+  bufferM?: number
+  baselineWindow?: { start: string; end: string }
+  currentWindow?: { start: string; end: string }
+}
+
 let jobStore: AnalysisJob[] = [...jobs]
 let reportStore: Report[] = [...reports]
 let interventionStore: Intervention[] = [...interventions]
@@ -373,11 +380,12 @@ export const hydrosnapService = {
   createAnalysis: async (
     watershedId: string,
     type: AnalysisJob["type"],
+    options: AnalysisOptions = {},
   ): Promise<AnalysisJob> => {
     if (!env.useMockApi) {
       return apiRequest<AnalysisJob>("/api/v1/analytics", {
         method: "POST",
-        body: JSON.stringify({ watershedId, type }),
+        body: JSON.stringify({ watershedId, type, ...options }),
       })
     }
     const job: AnalysisJob = {

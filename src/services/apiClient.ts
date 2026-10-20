@@ -80,3 +80,15 @@ export async function apiRequest<T>(
   if (response.status === 204) return undefined as T
   return (await response.json()) as T
 }
+
+/** Fetch a binary resource (e.g. a rendered satellite PNG) with the user's auth token. */
+export async function apiBlobUrl(path: string): Promise<string> {
+  const authToken = await resolveAuthToken()
+  const response = await fetch(`${env.apiBaseUrl.replace(/\/$/, "")}${path}`, {
+    headers: authToken ? { Authorization: `Bearer ${authToken}` } : {},
+  })
+  if (!response.ok) {
+    throw new ApiError(`Could not load image (HTTP ${response.status}).`, response.status)
+  }
+  return URL.createObjectURL(await response.blob())
+}

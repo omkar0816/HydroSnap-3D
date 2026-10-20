@@ -30,6 +30,10 @@ import { MapTimeline } from "@/components/maps/MapTimeline"
 import { bhuvanCatalog } from "@/config/bhuvan"
 import type { BhuvanLayerState } from "@/utils/bhuvanLayers"
 import { WatershedPanel } from "@/components/maps/WatershedPanel"
+import {
+  WatershedSatellitePanel,
+  type SatelliteOverlay,
+} from "@/components/maps/WatershedSatellitePanel"
 import { downloadAssetsCsv, downloadAssetsGeoJson } from "@/utils/exporters"
 import { geometryBounds, type Bounds } from "@/utils/geo"
 import { resolveWatershed } from "@/services/spatialService"
@@ -163,6 +167,7 @@ export function MapAnalysisPage() {
     () => polygonLayerGeometry(thematicLayers.find(({ id }) => id === "ndwi")),
     [thematicLayers],
   )
+  const [satelliteOverlay, setSatelliteOverlay] = useState<SatelliteOverlay | null>(null)
   const [basemap, setBasemap] = useState<Basemap>("standard")
   const [bhuvan, setBhuvan] = useState<BhuvanLayerState>(() => ({
     visible: {},
@@ -548,6 +553,7 @@ export function MapAnalysisPage() {
               basemap={basemap}
               imageryDate={imageryDate}
               pilotAnalysis={data.pilotAnalysis.data}
+              satelliteOverlay={satelliteOverlay}
               bhuvan={bhuvan}
               visibleLayers={visibleLayers}
               measure={measure}
@@ -701,12 +707,22 @@ export function MapAnalysisPage() {
               {watershed?.district ?? "—"} district
             </div>
             <div className="map-data-warning">
-              <Activity size={13} /> ILLUSTRATIVE DATA · SAMPLE FEATURES ·
-              NDVI/NDWI OVERLAYS SIMULATED
+              <Activity size={13} />{" "}
+              {satelliteOverlay
+                ? `SENTINEL-2 ${satelliteOverlay.indexType} · ${satelliteOverlay.windowStart} TO ${satelliteOverlay.windowEnd} · MEASURED VIA EARTH ENGINE`
+                : "ILLUSTRATIVE DATA · SAMPLE FEATURES · NDVI/NDWI OVERLAYS SIMULATED"}
             </div>
           </div>
         </section>
       </div>
+      {watershed && (
+        <div className="map-satellite-dock">
+          <WatershedSatellitePanel
+            watershedId={watershed.id}
+            onOverlayChange={setSatelliteOverlay}
+          />
+        </div>
+      )}
       <section className="map-assets-panel panel">
         <div className="map-assets-heading">
           <div>

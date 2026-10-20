@@ -16,13 +16,11 @@ import {
   Layers3,
   Leaf,
   MapPin as MapPinIcon,
-  MoreHorizontal,
   Plus,
   RefreshCw,
   Search,
   Settings2,
   ShieldCheck,
-  Sprout,
   Waves,
   X,
 } from "lucide-react"
@@ -170,6 +168,16 @@ export function WorkspacePage({ section }: { section: Section }) {
   const assets = allAssets.filter(
     (asset) => asset.watershedId === activeWatershed?.id,
   )
+  const allInterventions = evidenceQuery.data?.interventions ?? []
+  const visibleInterventions = useMemo(
+    () => interventionFilter === "Active"
+      ? allInterventions.filter(({ status }) => status === "In progress")
+      : allInterventions,
+    [allInterventions, interventionFilter],
+  )
+  const canEditInterventions = ["Field Officer", "GIS Analyst", "Administrator"].includes(
+    data.currentUser.data?.role ?? "",
+  )
   const filteredAssets = useMemo(
     () =>
       allAssets.filter((asset) => {
@@ -240,6 +248,24 @@ export function WorkspacePage({ section }: { section: Section }) {
       )
     } finally {
       setBusy(false)
+    }
+  }
+
+  async function startIntervention(item: EvidenceIntervention) {
+    try {
+      await data.updateIntervention.mutateAsync({ id: item.id, status: "In progress" })
+      context?.notify("Work marked In progress. NDVI and NDWI analysis has been queued.")
+    } catch (error) {
+      context?.notify(error instanceof Error ? error.message : "Could not update the intervention.")
+    }
+  }
+
+  async function refreshInterventionIndices(item: EvidenceIntervention) {
+    try {
+      await data.refreshInterventionIndices.mutateAsync(item.id)
+      context?.notify("NDVI and NDWI refresh queued.")
+    } catch (error) {
+      context?.notify(error instanceof Error ? error.message : "Could not queue the satellite refresh.")
     }
   }
 
@@ -687,8 +713,21 @@ export function WorkspacePage({ section }: { section: Section }) {
         <section className="panel workspace-table-panel">
           <div className="table-toolbar">
             <div className="table-result-count">
-              {(data.interventions.data ?? []).length} interventions ·{" "}
-              {activeWatershed?.name}
+              {visibleInterventions.length} {interventionFilter === "Active" ? "active" : ""} intervention
+              {visibleInterventions.length === 1 ? "" : "s"} · {activeWatershed?.name}
+            </div>
+            <div className="segmented-control" role="group" aria-label="Intervention filter">
+              {(["Active", "All"] as const).map((option) => (
+                <button
+                  key={option}
+                  type="button"
+                  className={interventionFilter === option ? "active" : ""}
+                  aria-pressed={interventionFilter === option}
+                  onClick={() => setInterventionFilter(option)}
+                >
+                  {option === "Active" ? "In progress" : "All work"}
+                </button>
+              ))}
             </div>
             <button
               className="button button-primary button-small"
@@ -768,6 +807,19 @@ export function WorkspacePage({ section }: { section: Section }) {
               />
             ))}
           </div>
+          {!visibleInterventions.length && (
+            <div className="empty-state">
+              <Activity size={22} />
+              <strong>
+                {interventionFilter === "Active"
+                  ? "No active watershed development work"
+                  : "No interventions recorded"}
+              </strong>
+              <span>
+                Save work as <b>In progress</b> to track it here with NDVI and NDWI from satellite imagery.
+              </span>
+            </div>
+          )}
         </section>
       )}
 
@@ -1177,9 +1229,12 @@ function AssetTable({
       )}
       {activeAsset &&
         (() => {
-          const observation = observations.find(
-            (item) => item.id === activeAsset.id,
-          )
+          // An observation either created this asset (same id) or was linked to
+          // it later; show the most recent one for the asset.
+          const observation = observations
+            .filter((item) => item.id === activeAsset.id || item.assetId === activeAsset.id)
+            .sort((a, b) => a.createdAt.localeCompare(b.createdAt))
+            .at(-1)
           if (!observation) return null
           return (
             <div className="hs-evidence-detail">
@@ -1239,70 +1294,6 @@ function AssetTable({
         latitude, longitude here. Sample assets are illustrative data.
       </div>
     </div>
-  )
-}
-
-function InterventionCard({ item }: { item: Intervention }) {
-  const [showDetails, setShowDetails] = useState(false)
-
-  return (
-    <article className="intervention-card">
-      <div className="intervention-card-top">
-        <span className="intervention-icon">
-          <Sprout size={18} />
-        </span>
-        <span
-          className={`status-pill ${
-            item.status === "Completed"
-              ? "status-green"
-              : item.status === "In progress"
-                ? "status-blue"
-                : "status-amber"
-          }`}
-        >
-          {item.status}
-        </span>
-        <button
-          className="icon-button small-icon"
-          aria-label="Intervention options"
-          onClick={() => setShowDetails((value) => !value)}
-        >
-          <MoreHorizontal size={17} />
-        </button>
-      </div>
-      <span className="section-kicker">{item.type}</span>
-      <h3>{item.name}</h3>
-      <p>
-        {item.village} · Due {item.dueDate}
-      </p>
-      <div className="intervention-progress-label">
-        <span>Progress</span>
-        <strong>{item.progress}%</strong>
-      </div>
-      <div className="progress-track">
-        <span style={{ width: `${item.progress}%` }} />
-      </div>
-      <div className="intervention-card-foot">
-        <span>Budget</span>
-        <strong>₹{item.budget.toLocaleString("en-IN")}</strong>
-        <button
-          className="text-button"
-          onClick={() => setShowDetails((value) => !value)}
-        >
-          {showDetails ? "Hide details" : "View details"}{" "}
-          <ArrowRight size={13} />
-        </button>
-      </div>
-      {showDetails && (
-        <div className="intervention-details">
-          <strong>Intervention details</strong>
-          <span>
-            {item.type} · {item.village}
-          </span>
-          <span>Budget and progress are sample planning data.</span>
-        </div>
-      )}
-    </article>
   )
 }
 

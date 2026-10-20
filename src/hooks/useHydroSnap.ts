@@ -3,6 +3,7 @@ import { hydrosnapService } from "@/services/hydrosnapService"
 import type {
   AnalysisJob,
   FieldObservation,
+  Intervention,
   PilotAnalysis,
   Report,
 } from "@/types/domain"
@@ -81,6 +82,8 @@ export function useHydroSnap(options: {
     onSuccess: () => {
       void queryClient.invalidateQueries({ queryKey: ["assets"] })
       void queryClient.invalidateQueries({ queryKey: ["observations"] })
+      // The Field evidence page and the map read the per-watershed evidence bundle.
+      void queryClient.invalidateQueries({ queryKey: ["watershed-evidence"] })
     },
   })
   const verifyObservation = useMutation({
@@ -88,6 +91,7 @@ export function useHydroSnap(options: {
     onSuccess: () => {
       void queryClient.invalidateQueries({ queryKey: ["assets"] })
       void queryClient.invalidateQueries({ queryKey: ["observations"] })
+      void queryClient.invalidateQueries({ queryKey: ["watershed-evidence"] })
     },
   })
   const createAnalysis = useMutation({

@@ -1,4 +1,4 @@
-import { useEffect, useState } from "react"
+import { useEffect, useRef, useState } from "react"
 import { useQueryClient } from "@tanstack/react-query"
 import { CloudOff, CloudUpload, LoaderCircle, RefreshCw } from "lucide-react"
 import { env } from "@/config/env"
@@ -8,6 +8,7 @@ import type { QueuedObservation } from "@/types/domain"
 /** Topbar sync status + manual "Sync now". Starts auto-sync on mount. */
 export function SyncIndicator() {
   const queryClient = useQueryClient()
+  const wasSyncing = useRef(false)
   const [records, setRecords] = useState<QueuedObservation[]>([])
   const [syncing, setSyncing] = useState(false)
   const [syncError, setSyncError] = useState<string>()
@@ -20,10 +21,20 @@ export function SyncIndicator() {
     const unsubscribe = subscribeSync((next, isSyncing) => {
       setRecords(next)
       setSyncing(isSyncing)
+      // A sync run just finished (including one started by "Save observation"):
+      // reload what the Field evidence page and the map display.
+      if (wasSyncing.current && !isSyncing) {
+        void queryClient.invalidateQueries({ queryKey: ["assets"] })
+        void queryClient.invalidateQueries({ queryKey: ["observations"] })
+        void queryClient.invalidateQueries({ queryKey: ["watershed-evidence"] })
+      }
+      wasSyncing.current = isSyncing
     })
     const stop = startAutoSync(() => {
       void queryClient.invalidateQueries({ queryKey: ["assets"] })
       void queryClient.invalidateQueries({ queryKey: ["observations"] })
+      // Field evidence and the map read this per-watershed bundle.
+      void queryClient.invalidateQueries({ queryKey: ["watershed-evidence"] })
     }, setSyncError)
     const update = () => setOnline(navigator.onLine)
     window.addEventListener("online", update)
@@ -108,6 +119,9 @@ export function SyncIndicator() {
                   void queryClient.invalidateQueries({ queryKey: ["assets"] })
                   void queryClient.invalidateQueries({
                     queryKey: ["observations"],
+                  })
+                  void queryClient.invalidateQueries({
+                    queryKey: ["watershed-evidence"],
                   })
                 })
                 .catch((error: unknown) => {

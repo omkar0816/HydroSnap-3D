@@ -1120,6 +1120,82 @@ app.get("/api/v1/reports", requireAuth, async (_request, response) => {
   response.json(rows)
 })
 
+app.post("/api/v1/interventions/:id/indices/refresh", requireOfficer, async (request, response) => {
+  const { rows } = await pool.query<{
+    id: string
+    watershed_id: string
+    asset_id: string | null
+    installed_at: string | null
+    demo: boolean
+  }>(
+    `SELECT id, watershed_id, asset_id, installed_at::text, demo
+     FROM interventions WHERE id = $1`,
+    [request.params.id],
+  )
+  const row = rows[0]
+  if (!row) throw new HttpError("Intervention was not found.", 404)
+  if (row.demo) throw new HttpError("Demo interventions have no satellite monitoring.", 422)
+  const jobs = await enqueueInterventionIndices(pool, {
+    watershedId: row.watershed_id,
+    assetId: row.asset_id,
+    windows: activeWorkWindows(new Date()),
+    createdBy: request.user!.id,
+    interventionId: row.id,
+    installedAt: row.installed_at,
+  })
+  response.status(202).json({ jobs })
+})
+
+app.get("/api/v1/reports/:reportId", requireAuth, async (request, response) => {
+  const { rows } = await pool.query(
+    `SELECT id, watershed_id AS "watershedId", created_by AS "createdBy",
+            created_at::text AS "createdAt", fact_set AS "factSet",
+            fact_set_sha256 AS "factSetSha256", claims, gaps,
+            rendered_markdown AS "renderedMarkdown", model,
+            validator_version AS "validatorVersion", language
+     FROM watershed_reports WHERE id = $1`,
+    [request.params.reportId],
+  )
+  if (!rows[0]) throw new HttpError("Watershed report was not found.", 404)
+  response.json(rows[0])
+})
+
+app.get("/api/v1/reports", requireAuth, async (_request, response) => {
+  const { rows } = await pool.query(
+    `SELECT id, watershed_id AS "watershedId", created_at::text AS "createdAt",
+            'Ready' AS status, 'Watershed summary' AS type,
+            'Watershed report' AS name
+     FROM watershed_reports ORDER BY created_at DESC`,
+  )
+  response.json(rows)
+})
+
+/**
+ * Queue NDVI + NDWI Earth Engine jobs for an intervention that is in progress.
+ * Best effort: the officer's save must never fail because queueing failed.
+ */
+async function queueInterventionMonitoring(
+  interventionId: string,
+  watershedId: string,
+  assetId: string | null,
+  installedAt: string | null,
+  userId: string,
+) {
+  try {
+    return await enqueueInterventionIndices(pool, {
+      watershedId,
+      assetId,
+      windows: activeWorkWindows(new Date()),
+      createdBy: userId,
+      interventionId,
+      installedAt,
+    })
+  } catch (error) {
+    console.error("Could not queue satellite monitoring for intervention.", interventionId, error)
+    return []
+  }
+}
+
 async function listPayloads(
   table: "analysis_jobs" | "analysis_results" | "interventions" | "reports",
 ) {

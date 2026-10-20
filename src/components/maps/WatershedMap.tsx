@@ -52,6 +52,15 @@ export interface ChoroplethConfig {
   label: string
 }
 
+/** A rendered Sentinel-2 index composite (PNG) pinned to WGS84 bounds. */
+export interface SatelliteIndexOverlay {
+  url: string
+  /** [west, south, east, north] */
+  bounds: [number, number, number, number]
+  indexType: "NDVI" | "NDWI"
+  opacity: number
+}
+
 interface WatershedMapProps {
   assets: Asset[]
   /** Active watershed (the map fits to it). */
@@ -79,6 +88,8 @@ interface WatershedMapProps {
   /** Date for historical satellite imagery; omitted to use current imagery. */
   imageryDate?: string
   pilotAnalysis?: PilotAnalysis | null
+  /** Real NDVI/NDWI raster measured from Sentinel-2 (Earth Engine). */
+  satelliteOverlay?: SatelliteIndexOverlay | null
   /** Bhuvan (NRSC/ISRO) thematic overlay visibility + opacity. */
   bhuvan?: BhuvanLayerState
   onSelectAsset: (asset: Asset) => void
@@ -267,6 +278,7 @@ export function WatershedMap({
   highlightAssetIds = [],
   imageryDate,
   pilotAnalysis,
+  satelliteOverlay,
   bhuvan,
   onSelectAsset,
   onSelectWatershed,
@@ -780,6 +792,44 @@ export function WatershedMap({
     )
   }, [mapLoaded, ndviOverlay, ndwiOverlay, pilotAnalysis, streams])
 
+  // Selected satellite index raster (real Sentinel-2 measurement). The image is
+  // only re-added when the picture or its bounds change, not on opacity edits.
+  const satelliteUrl = satelliteOverlay?.url
+  const [satWest, satSouth, satEast, satNorth] = satelliteOverlay?.bounds ?? []
+  useEffect(() => {
+    const map = mapRef.current
+    if (!map || !mapLoaded) return
+    if (
+      !satelliteUrl ||
+      satWest === undefined || satSouth === undefined ||
+      satEast === undefined || satNorth === undefined
+    ) {
+      removeImageLayer(map, SATELLITE_INDEX_SOURCE, SATELLITE_INDEX_LAYER)
+      return
+    }
+    const [west, south, east, north] = [satWest, satSouth, satEast, satNorth]
+    addImageLayer(
+      map,
+      SATELLITE_INDEX_SOURCE,
+      SATELLITE_INDEX_LAYER,
+      satelliteUrl,
+      west,
+      south,
+      east,
+      north,
+    )
+    map.setLayoutProperty(SATELLITE_INDEX_LAYER, "visibility", "visible")
+  }, [mapLoaded, satelliteUrl, satWest, satSouth, satEast, satNorth])
+
+  const satelliteOpacity = satelliteOverlay?.opacity
+  useEffect(() => {
+    const map = mapRef.current
+    if (!map || !mapLoaded || satelliteOpacity === undefined) return
+    if (map.getLayer(SATELLITE_INDEX_LAYER)) {
+      map.setPaintProperty(SATELLITE_INDEX_LAYER, "raster-opacity", satelliteOpacity)
+    }
+  }, [mapLoaded, satelliteOpacity, satelliteUrl])
+
   // Asset point features only change when the underlying data changes.
   useEffect(() => {
     const map = mapRef.current
@@ -1106,6 +1156,9 @@ function addOfficialWatershedTiles(map: MapLibreMap) {
     })
   }
 }
+
+const SATELLITE_INDEX_SOURCE = "satellite-index"
+const SATELLITE_INDEX_LAYER = "satellite-index-overlay"
 
 function applyThematicLayers(
   map: MapLibreMap,
