@@ -53,6 +53,15 @@ COGs, plus database access to the same PostGIS instance as the API. In a
 deployment, run it as a persistent worker service with the production
 `DATABASE_URL`; Vercel request functions do not run this polling worker.
 
+For a same-project Vercel deployment, API requests under `/api/v1` and
+`/api/health` are rewritten to the Express function in `api/index.ts`;
+`/api/pilot-summary` remains a separate function. Set
+`VITE_API_BASE_URL=/` and `VITE_USE_MOCK_API=false` in Vercel when you want the
+frontend to call that API. If `VITE_API_BASE_URL` is omitted, production uses
+same-origin requests while local development defaults to `http://localhost:8000`.
+The Express API still requires its server-side database and authentication
+environment variables; this routing does not supply or replace them.
+
 `pnpm db:setup` applies all migration files by filename, tracks them in
 `schema_migrations`, and seeds demo rows; repeated runs are safe. `pnpm
 db:backfill` copies legacy JSON payload values into typed columns, `pnpm
@@ -135,7 +144,7 @@ defaults below are suitable only for local development.
 | `API_PUBLIC_URL` | derived from request | Public base used to form photo URLs |
 | `CORS_ORIGINS` | `http://localhost:8443,http://localhost:5173` | Allowed browser origins |
 | `UPLOAD_DIRECTORY` | `storage/uploads` | Local photo directory |
-| `VITE_API_BASE_URL` | `http://localhost:8000` | Frontend API origin |
+| `VITE_API_BASE_URL` | `http://localhost:8000` locally; same-origin in production | Frontend API origin |
 | `VITE_USE_MOCK_API` | `false` | Set `true` for visibly labeled mock mode |
 | `VITE_DEMO_EMPTY_FALLBACK` | `true` | Show illustrative fixtures only when API collections are empty; set `false` for API-only reads |
 | `SUPABASE_URL` | `https://example.supabase.co` | Supabase Auth issuer/JWKS URL |

@@ -4,7 +4,11 @@ function readBoolean(value: string | undefined, fallback: boolean): boolean {
 }
 
 export const env = {
-  apiBaseUrl: import.meta.env.VITE_API_BASE_URL ?? "http://localhost:8000",
+  // Production defaults to the same-origin Vercel API; local development uses
+  // the separately started Express server.
+  apiBaseUrl:
+    import.meta.env.VITE_API_BASE_URL ??
+    (import.meta.env.PROD ? "" : "http://localhost:8000"),
   // With no API URL configured (e.g. a Vercel deploy without a hosted backend)
   // default to demo data instead of calling the visitor's own localhost:8000.
   useMockApi: readBoolean(
