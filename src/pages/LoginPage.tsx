@@ -1,4 +1,11 @@
-import { useState, type FormEvent, type ReactNode } from "react"
+import {
+  useEffect,
+  useRef,
+  useState,
+  type FormEvent,
+  type ReactNode,
+} from "react"
+import maplibregl from "maplibre-gl"
 import {
   AlertCircle,
   CheckCircle2,
@@ -93,6 +100,52 @@ export function LoginPage() {
     null,
   )
 
+  const mapContainerRef = useRef<HTMLDivElement | null>(null)
+
+  useEffect(() => {
+    if (!mapContainerRef.current) return
+
+    const map = new maplibregl.Map({
+      container: mapContainerRef.current,
+      style: {
+        version: 8,
+        sources: {
+          satellite: {
+            type: "raster",
+            tiles: [
+              "https://server.arcgisonline.com/ArcGIS/rest/services/World_Imagery/MapServer/tile/{z}/{y}/{x}",
+            ],
+            tileSize: 256,
+            attribution: "Tiles © Esri",
+          },
+        },
+        layers: [
+          {
+            id: "satellite-imagery",
+            type: "raster",
+            source: "satellite",
+            paint: {
+              "raster-opacity": 1,
+              "raster-saturation": -0.12,
+              "raster-contrast": 0.08,
+            },
+          },
+        ],
+      },
+      center: [73.7, 18.4],
+      zoom: 10,
+      minZoom: 8,
+      maxZoom: 15,
+      interactive: false,
+      attributionControl: false,
+      dragRotate: false,
+      pitchWithRotate: false,
+      renderWorldCopies: false,
+    })
+
+    return () => map.remove()
+  }, [status])
+
   if (status === "ready") return <Navigate to={redirectTo} replace />
 
   const busy = submitting || status === "checking"
@@ -167,8 +220,16 @@ export function LoginPage() {
   }
 
   return (
-    <main className="grid min-h-screen place-items-center bg-[#f2f7fc] px-4 py-10">
-      <div className="w-full max-w-md">
+    <main className="login-page-background">
+      <div
+        ref={mapContainerRef}
+        className="login-satellite-map"
+        aria-hidden="true"
+      />
+
+      <div className="login-map-overlay" aria-hidden="true" />
+
+      <div className="login-page-content w-full max-w-md">
         <Link
           to="/"
           className="mb-7 flex items-center justify-center gap-2.5"

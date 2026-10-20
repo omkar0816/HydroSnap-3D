@@ -365,3 +365,58 @@ kbd { white-space: nowrap; padding: 3px 5px; border: 1px solid #e6ebef; border-r
 @media (prefers-reduced-motion: reduce) {
   *,*::before,*::after { scroll-behavior: auto!important; animation-duration: .01ms!important; animation-iteration-count: 1!important; transition-duration: .01ms!important; }
 }
+
+/* Login page: full-screen satellite imagery */
+.login-page-background {
+  position: relative;
+  isolation: isolate;
+  display: grid;
+  min-height: 100vh;
+  min-height: 100dvh;
+  place-items: center;
+  overflow: hidden;
+  padding: 40px 16px;
+  background: #183b42;
+}
+
+.login-satellite-map {
+  position: absolute;
+  inset: 0;
+  z-index: -2;
+  overflow: hidden;
+}
+
+.login-satellite-map .maplibregl-canvas {
+  outline: none;
+}
+
+.login-map-overlay {
+  position: absolute;
+  inset: 0;
+  z-index: -1;
+  pointer-events: none;
+  background:
+    linear-gradient(
+      180deg,
+      rgba(12, 37, 44, 0.28) 0%,
+      rgba(12, 37, 44, 0.16) 45%,
+      rgba(12, 37, 44, 0.38) 100%
+    );
+}
+
+.login-page-content {
+  position: relative;
+  z-index: 1;
+  width: 100%;
+  max-width: 464px;
+}
+
+.login-page-content > section {
+  box-shadow: 0 18px 55px rgba(12, 37, 44, 0.2);
+}
+
+@media (max-width: 480px) {
+  .login-page-background {
+    padding: 24px 16px;
+  }
+}
