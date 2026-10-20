@@ -51,11 +51,31 @@ import type {
 } from "@/types/geojson"
 
 const layerDefinitions = [
-  { key: "boundary", icon: Waves, color: "#3c9b72" },
-  { key: "streams", icon: Droplets, color: "#46a9cd" },
+  {
+    key: "boundary",
+    label: "Watershed boundary",
+    icon: Waves,
+    color: "#3c9b72",
+  },
+  {
+    key: "streams",
+    label: "Drainage network",
+    icon: Droplets,
+    color: "#46a9cd",
+  },
   { key: "assets", label: "Field assets", icon: MapPin, color: "#1b82b6" },
-  { key: "ndvi", icon: Leaf, color: "#4b9d68" },
-  { key: "ndwi", icon: Droplets, color: "#4096c6" },
+  {
+    key: "ndvi",
+    label: "Vegetation health · NDVI",
+    icon: Leaf,
+    color: "#4b9d68",
+  },
+  {
+    key: "ndwi",
+    label: "Surface water · NDWI",
+    icon: Droplets,
+    color: "#4096c6",
+  },
 ] as const
 
 type LayerKey = typeof layerDefinitions[number]["key"]
@@ -151,6 +171,7 @@ export function MapAnalysisPage() {
   const [focusPosition, setFocusPosition] = useState<[number, number]>()
   const [layersOpen, setLayersOpen] = useState(true)
   const [mapSidebarOpen, setMapSidebarOpen] = useState(false)
+  const [mapLayerMenuOpen, setMapLayerMenuOpen] = useState(false)
   const [focusBounds, setFocusBounds] = useState<Bounds>()
   const [panelWatershedId, setPanelWatershedId] = useState<string>()
   const [watershedQuery, setWatershedQuery] = useState("")
@@ -428,7 +449,10 @@ export function MapAnalysisPage() {
             onToggle={(layerId) =>
               setBhuvan((state) => ({
                 ...state,
-                visible: { ...state.visible, [layerId]: !state.visible[layerId] },
+                visible: {
+                  ...state.visible,
+                  [layerId]: !state.visible[layerId],
+                },
               }))
             }
             onOpacity={(layerId, opacity) =>
@@ -589,6 +613,80 @@ export function MapAnalysisPage() {
               ndwiOverlay={ndwiGeometry}
               onSelectAsset={setSelectedAsset}
             />
+            <div className="map-layer-menu">
+              <button
+                type="button"
+                className="map-layer-menu-trigger"
+                onClick={() => setMapLayerMenuOpen((open) => !open)}
+                aria-expanded={mapLayerMenuOpen}
+                aria-controls="map-layer-menu-panel"
+              >
+                <Layers3 size={15} />
+                Map layers
+                <ChevronDown
+                  size={13}
+                  className={mapLayerMenuOpen ? "is-open" : ""}
+                />
+              </button>
+              <div
+                id="map-layer-menu-panel"
+                className="map-layer-menu-panel"
+                aria-label="Map layers"
+                hidden={!mapLayerMenuOpen}
+              >
+                <strong>Map layers</strong>
+                {layerDefinitions.map(({ key, label, icon: Icon, color }) => {
+                  const layer = thematicLayers.find(
+                    (thematicLayer) => thematicLayer.id === key,
+                  )
+                  return (
+                    <label className="map-layer-menu-row" key={key}>
+                      <span
+                        className="layer-symbol"
+                        style={{ color, background: `${color}16` }}
+                      >
+                        <Icon size={14} />
+                      </span>
+                      <span>
+                        {key === "assets" ? label : (layer?.name ?? label)}
+                        {(key === "ndvi" || key === "ndwi") && layer?.demo && (
+                          <small>Simulated overlay</small>
+                        )}
+                      </span>
+                      <input
+                        type="checkbox"
+                        checked={visibleLayers[key]}
+                        onChange={() =>
+                          context?.setVisibleLayers((state) => ({
+                            ...state,
+                            [key]: !state[key],
+                          }))
+                        }
+                      />
+                    </label>
+                  )
+                })}
+                <BhuvanLayerPanel
+                  compact
+                  state={bhuvan}
+                  onToggle={(layerId) =>
+                    setBhuvan((state) => ({
+                      ...state,
+                      visible: {
+                        ...state.visible,
+                        [layerId]: !state.visible[layerId],
+                      },
+                    }))
+                  }
+                  onOpacity={(layerId, opacity) =>
+                    setBhuvan((state) => ({
+                      ...state,
+                      opacity: { ...state.opacity, [layerId]: opacity },
+                    }))
+                  }
+                />
+              </div>
+            </div>
             <div className="basemap-switcher">
               <span>BASEMAP</span>
               {(["standard", "satellite", "terrain"] as const).map((style) => (

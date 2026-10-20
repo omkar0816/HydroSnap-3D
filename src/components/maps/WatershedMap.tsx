@@ -349,6 +349,11 @@ export function WatershedMap({
       zoom: 12.4,
     })
     mapRef.current = map
+    const resizeObserver =
+      typeof ResizeObserver === "undefined"
+        ? undefined
+        : new ResizeObserver(() => map.resize())
+    resizeObserver?.observe(container)
     map.addControl(
       new maplibregl.NavigationControl({ showCompass: true }),
       "top-right",
@@ -633,6 +638,7 @@ export function WatershedMap({
       callbacks.current.onMapReady?.(map)
     })
     return () => {
+      resizeObserver?.disconnect()
       callbacks.current.onMapReady?.(null)
       identifyAbort.current?.abort()
       identifyPopup.current?.remove()
