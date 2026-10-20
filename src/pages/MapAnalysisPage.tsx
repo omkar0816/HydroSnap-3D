@@ -30,6 +30,7 @@ import { MapTimeline } from "@/components/maps/MapTimeline"
 import { bhuvanCatalog } from "@/config/bhuvan"
 import type { BhuvanLayerState } from "@/utils/bhuvanLayers"
 import { WatershedPanel } from "@/components/maps/WatershedPanel"
+import { DicraDatasetPanel } from "@/components/maps/DicraDatasetPanel"
 import {
   WatershedSatellitePanel,
   type SatelliteOverlay,
@@ -114,6 +115,17 @@ export function MapAnalysisPage() {
   const watersheds = data.watersheds.data ?? EMPTY_WATERSHEDS
   const watershed =
     watersheds.find(({ id }) => id === context?.watershedId) ?? watersheds[0]
+  const dicraBbox = useMemo(() => {
+    if (!watershed) return undefined
+    const bounds = geometryBounds(watershed.boundary.geometry)
+    const bbox: [number, number, number, number] = [
+      bounds[0][0],
+      bounds[0][1],
+      bounds[1][0],
+      bounds[1][1],
+    ]
+    return bbox
+  }, [watershed])
   const evidenceQuery = useWatershedEvidence(watershed?.id)
   const allAssets = useMemo(
     () => evidenceAssetsToAssets(evidenceQuery.data),
@@ -715,14 +727,21 @@ export function MapAnalysisPage() {
           </div>
         </section>
       </div>
-      {watershed && (
-        <div className="map-satellite-dock">
+      <div className="map-satellite-dock">
+        {watershed && (
           <WatershedSatellitePanel
             watershedId={watershed.id}
             onOverlayChange={setSatelliteOverlay}
           />
+        )}
+        <div className="mt-3">
+          <DicraDatasetPanel
+            watershedName={watershed?.name}
+            watershedIsDemo={watershed?.demo}
+            bbox={dicraBbox}
+          />
         </div>
-      )}
+      </div>
       <section className="map-assets-panel panel">
         <div className="map-assets-heading">
           <div>

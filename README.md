@@ -116,6 +116,11 @@ storage behavior, and limitations. The Compose credentials in
 `.env.example` are development placeholders only. Do not expose the local
 backend to an untrusted network.
 
+The map-analysis page also includes authenticated DiCRA STAC collection and
+item discovery. This currently displays catalogue metadata only; raster
+rendering and DiCRA-specific worker processing are not configured. See
+[`docs/DICRA_INTEGRATION.md`](docs/DICRA_INTEGRATION.md).
+
 ## Structure
 
 ```

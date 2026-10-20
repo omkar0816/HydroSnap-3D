@@ -16,7 +16,9 @@ import { LlmError } from "./llm.ts"
 import { parseImageExif, verifyUpload } from "./verification.ts"
 import { analysisRequestSchema } from "./satellite/request.ts"
 import { interventionWindows, seasonMatchedWindows, DEFAULT_SEASON } from "./satellite/windows.ts"
+import { createDicraClient, DicraClientError } from "./dicra.ts"
 import { serverEnv } from "./env.ts"
+import { dicraSearchRequestSchema } from "../shared/dicra.ts"
 import {
   asRecord,
   HttpError,
@@ -34,6 +36,7 @@ import {
 const app = express()
 const uploadRoot = path.resolve(serverEnv.uploadDirectory)
 const maxImageBytes = 20 * 1024 * 1024
+const dicraClient = createDicraClient(serverEnv.dicra)
 const uploadRateLimit = rateLimit({
   windowMs: 15 * 60 * 1000,
   limit: 60,
@@ -50,6 +53,18 @@ const reportRateLimit = rateLimit({
   legacyHeaders: false,
   handler: (_request, response) => {
     response.status(429).json({ code: "rate_limited", detail: "Too many report requests. Try again later." })
+  },
+})
+const dicraRateLimit = rateLimit({
+  windowMs: 60 * 1000,
+  limit: 60,
+  standardHeaders: "draft-8",
+  legacyHeaders: false,
+  handler: (_request, response) => {
+    response.status(429).json({
+      code: "rate_limited",
+      detail: "Too many DiCRA requests. Try again shortly.",
+    })
   },
 })
 
@@ -218,6 +233,42 @@ function ensureValidGeometry(geometry: Record<string, unknown>) {
 app.get("/health", async (_request, response) => {
   await pool.query("SELECT 1")
   response.json({ status: "ok", database: "connected" })
+})
+
+app.get("/api/v1/dicra/status", requireAuth, dicraRateLimit, async (_request, response) => {
+  const root = await dicraClient.getRoot()
+  response.json({
+    available: true,
+    title: root.title ?? root.id,
+    stacVersion: root.stac_version ?? null,
+    rasterRenderingConfigured: false,
+  })
+})
+
+app.get("/api/v1/dicra/collections", requireAuth, dicraRateLimit, async (_request, response) => {
+  response.json(await dicraClient.getCollections())
+})
+
+app.get("/api/v1/dicra/collections/:collectionId", requireAuth, dicraRateLimit, async (request, response) => {
+  const collectionId = request.params.collectionId
+  if (typeof collectionId !== "string") {
+    throw new RequestValidationError("Collection ID is invalid.")
+  }
+  response.json(await dicraClient.getCollection(collectionId))
+})
+
+app.get("/api/v1/dicra/queryables", requireAuth, dicraRateLimit, async (_request, response) => {
+  response.json(await dicraClient.getQueryables())
+})
+
+app.post("/api/v1/dicra/search", requireAuth, dicraRateLimit, async (request, response) => {
+  const input = parseRequest(dicraSearchRequestSchema, request.body)
+  if ((input.limit ?? Math.min(serverEnv.dicra.maxSearchLimit, 25)) > serverEnv.dicra.maxSearchLimit) {
+    throw new RequestValidationError(
+      `limit cannot exceed ${serverEnv.dicra.maxSearchLimit}.`,
+    )
+  }
+  response.json(await dicraClient.searchItems(input))
 })
 
 app.get("/api/v1/users/me", requireAuth, (request, response) => {
@@ -1224,6 +1275,19 @@ const errorHandler: ErrorRequestHandler = (
   response,
   _next,
 ) => {
+  if (error instanceof DicraClientError) {
+    if (error.status >= 500) {
+      console.warn("DiCRA request failed.", {
+        code: error.code,
+        status: error.status,
+      })
+    }
+    response.status(error.status).json({
+      code: error.code,
+      detail: error.message,
+    })
+    return
+  }
   if (error instanceof RequestValidationError || error instanceof HttpError) {
     response.status(error.status).json({ detail: error.message })
     return
