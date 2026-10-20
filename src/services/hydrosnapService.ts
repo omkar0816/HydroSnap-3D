@@ -100,10 +100,103 @@ const pilotAnalysisSchema: z.ZodType<PilotAnalysis> = z.object({
 const delay = (milliseconds = 180) =>
   new Promise<void>((resolve) => window.setTimeout(resolve, milliseconds))
 
-async function list<T>(path: string, demoData: T[]): Promise<T[]> {
-  if (!env.useMockApi) return apiRequest<T[]>(path)
+async function list<T>(
+  path: string,
+  demoData: T[],
+  useDemoFallback = false,
+): Promise<T[]> {
+  if (!env.useMockApi) {
+    const data = await apiRequest<T[]>(path)
+    return useDemoFallback && env.useDemoFallback && data.length === 0
+      ? demoData
+      : data
+  }
   await delay()
   return demoData
+}
+
+async function getDemoWatershedEvidence(
+  watershedId: string,
+): Promise<WatershedEvidence> {
+  const watershed = watersheds.find((item) => item.id === watershedId)
+  if (!watershed) throw new Error("Watershed was not found.")
+  const watershedAssets = assets
+  const observations = await hydrosnapService.getObservations()
+  return {
+    watershed: {
+      id: watershed.id,
+      name: watershed.name,
+      areaKm2: watershed.areaSqKm,
+      boundaryGeojson: watershed.boundary,
+      source: "demo",
+      sourceLicence: null,
+      demo: true,
+    },
+    assets: watershedAssets
+      .filter((item) => item.watershedId === watershedId)
+      .map((item) => ({
+        id: item.id,
+        type: item.type,
+        name: item.name,
+        lng: item.location.coordinates[0],
+        lat: item.location.coordinates[1],
+        installedAt: item.installedAt ?? null,
+        status: item.status,
+        source: "demo",
+        sourceLicence: "Illustrative demo data",
+        demo: true,
+        village: item.village,
+        description: item.description,
+      })),
+    observations: observations
+      .filter((item) => item.watershedId === watershedId)
+      .map((item) => ({
+        id: item.id,
+        assetId: item.assetId ?? null,
+        assetType: item.assetType,
+        inspectionDate: item.inspectionDate,
+        verificationStatus: item.verificationStatus,
+        trustFlags: (item.trust?.reasons ?? []).map((flag) => ({
+          ...flag,
+          severity:
+            flag.severity === "warning" ? ("warn" as const) : flag.severity,
+        })),
+        recordedAt: item.createdAt,
+        officerId: item.officerId,
+        source: "demo",
+        sourceLicence: "Illustrative demo data",
+        demo: true,
+        lng: item.location.coordinates[0],
+        lat: item.location.coordinates[1],
+        village: item.village,
+        description: item.description,
+        imageSha256: item.imageSha256 ?? null,
+        hasImage: Boolean(item.imageDataUrl),
+        snapDistanceMeters: item.snapDistanceMeters ?? null,
+        trust: item.trust ?? null,
+        photoContentReview: item.photoContentReview ?? null,
+      })),
+    interventions: interventionStore
+      .filter((item) => item.watershedId === watershedId)
+      .map((item) => ({
+        id: item.id,
+        assetId: null,
+        name: item.name,
+        type: item.type,
+        village: item.village,
+        status: item.status,
+        installedAt: null,
+        progress: item.progress,
+        recordedAt: item.dueDate,
+        source: "demo",
+        sourceLicence: "Illustrative demo data",
+        demo: true,
+      })),
+    satellite: [],
+    landUse: [],
+    drainage: null,
+    generatedAt: new Date().toISOString(),
+  }
 }
 
 export const hydrosnapService = {
@@ -113,93 +206,25 @@ export const hydrosnapService = {
     return Promise.resolve(currentUser)
   },
   getTeamMembers: () => list<TeamMember>("/api/v1/users/team", teamMembers),
-  getWatersheds: () => list<Watershed>("/api/v1/watersheds", watersheds),
+  getWatersheds: () =>
+    list<Watershed>("/api/v1/watersheds", watersheds, true),
   getWatershedEvidence: async (watershedId: string): Promise<WatershedEvidence> => {
     if (!env.useMockApi) {
-      return apiRequest<WatershedEvidence>(
+      const evidence = await apiRequest<WatershedEvidence>(
         `/api/v1/watersheds/${encodeURIComponent(watershedId)}/evidence`,
       )
+      const isEmpty =
+        evidence.assets.length === 0 &&
+        evidence.observations.length === 0 &&
+        evidence.interventions.length === 0
+      const isDemoWatershed = watersheds.some(
+        (item) => item.id === watershedId,
+      )
+      return env.useDemoFallback && isEmpty && isDemoWatershed
+        ? getDemoWatershedEvidence(watershedId)
+        : evidence
     }
-    const watershed = watersheds.find((item) => item.id === watershedId)
-    if (!watershed) throw new Error("Watershed was not found.")
-    const [watershedAssets, observations] = await Promise.all([
-      hydrosnapService.getAssets(),
-      hydrosnapService.getObservations(),
-    ])
-    return {
-      watershed: {
-        id: watershed.id,
-        name: watershed.name,
-        areaKm2: watershed.areaSqKm,
-        boundaryGeojson: watershed.boundary,
-        source: "demo",
-        sourceLicence: null,
-        demo: true,
-      },
-      assets: watershedAssets
-        .filter((item) => item.watershedId === watershedId)
-        .map((item) => ({
-          id: item.id,
-          type: item.type,
-          name: item.name,
-          lng: item.location.coordinates[0],
-          lat: item.location.coordinates[1],
-          installedAt: item.installedAt ?? null,
-          status: item.status,
-          source: "demo",
-          sourceLicence: "Illustrative demo data",
-          demo: true,
-          village: item.village,
-          description: item.description,
-        })),
-      observations: observations
-        .filter((item) => item.watershedId === watershedId)
-        .map((item) => ({
-          id: item.id,
-          assetId: item.assetId ?? null,
-          assetType: item.assetType,
-          inspectionDate: item.inspectionDate,
-          verificationStatus: item.verificationStatus,
-          trustFlags: (item.trust?.reasons ?? []).map((flag) => ({
-            ...flag,
-            severity: flag.severity === "warning" ? "warn" as const : flag.severity,
-          })),
-          recordedAt: item.createdAt,
-          officerId: item.officerId,
-          source: "demo",
-          sourceLicence: "Illustrative demo data",
-          demo: true,
-          lng: item.location.coordinates[0],
-          lat: item.location.coordinates[1],
-          village: item.village,
-          description: item.description,
-          imageSha256: item.imageSha256 ?? null,
-          hasImage: Boolean(item.imageDataUrl),
-          snapDistanceMeters: item.snapDistanceMeters ?? null,
-          trust: item.trust ?? null,
-          photoContentReview: item.photoContentReview ?? null,
-        })),
-      interventions: interventionStore
-        .filter((item) => item.watershedId === watershedId)
-        .map((item) => ({
-          id: item.id,
-          assetId: null,
-          name: item.name,
-          type: item.type,
-          village: item.village,
-          status: item.status,
-          installedAt: null,
-          progress: item.progress,
-          recordedAt: item.dueDate,
-          source: "demo",
-          sourceLicence: "Illustrative demo data",
-          demo: true,
-        })),
-      satellite: [],
-      landUse: [],
-      drainage: null,
-      generatedAt: new Date().toISOString(),
-    }
+    return getDemoWatershedEvidence(watershedId)
   },
   getSatelliteMeasurements: (watershedId: string): Promise<SatelliteMeasurementRow[]> => {
     if (env.useMockApi) return Promise.resolve([])
@@ -232,7 +257,8 @@ export const hydrosnapService = {
           }
         })
       : apiRequest<AnalysisJobStatusRow>(`/api/v1/analytics/jobs/${encodeURIComponent(jobId)}`),
-  getLayers: () => list<ThematicLayer>("/api/v1/layers", thematicLayers),
+  getLayers: () =>
+    list<ThematicLayer>("/api/v1/layers", thematicLayers, true),
   getAssets: async () => {
     if (!env.useMockApi) {
       const apiAssets = await apiRequest<Asset[]>("/api/v1/assets")
@@ -243,7 +269,13 @@ export const hydrosnapService = {
         .filter((record) => !record.observation.assetId)
         .map((record) => observationToAsset(record.observation))
       const ids = new Set(apiAssets.map((asset) => asset.id))
-      return [...apiAssets, ...unsynced.filter((asset) => !ids.has(asset.id))]
+      const localAssets = unsynced.filter((asset) => !ids.has(asset.id))
+      return env.useDemoFallback && apiAssets.length === 0
+        ? [
+            ...assets.map((asset) => ({ ...asset, demo: true })),
+            ...localAssets,
+          ]
+        : [...apiAssets, ...localAssets]
     }
     await delay()
     await loadOfflineObservations()
@@ -273,12 +305,15 @@ export const hydrosnapService = {
     return observationStore
   },
   getJobs: async () => {
-    if (!env.useMockApi)
-      return apiRequest<AnalysisJob[]>("/api/v1/analytics/jobs")
+    if (!env.useMockApi) {
+      const apiJobs = await apiRequest<AnalysisJob[]>("/api/v1/analytics/jobs")
+      return env.useDemoFallback && apiJobs.length === 0 ? jobs : apiJobs
+    }
     await delay()
     return jobStore
   },
-  getResults: () => list<AnalysisResult>("/api/v1/analytics/results", results),
+  getResults: () =>
+    list<AnalysisResult>("/api/v1/analytics/results", results, true),
   getPilotAnalysis: async (): Promise<PilotAnalysis | null> => {
     const response = await fetch("/data/pilot/summary.json", {
       headers: { Accept: "application/json" },
@@ -297,7 +332,16 @@ export const hydrosnapService = {
   generatePilotSummary: (analysis: PilotAnalysis): Promise<AiPilotSummary> =>
     runPilotSummary(analysis),
   getInterventions: async () => {
-    if (!env.useMockApi) return apiRequest<Intervention[]>("/api/v1/interventions")
+    if (!env.useMockApi) {
+      const apiInterventions =
+        await apiRequest<Intervention[]>("/api/v1/interventions")
+      return env.useDemoFallback && apiInterventions.length === 0
+        ? interventions.map((intervention) => ({
+            ...intervention,
+            demo: true,
+          }))
+        : apiInterventions
+    }
     await delay()
     return interventionStore
   },

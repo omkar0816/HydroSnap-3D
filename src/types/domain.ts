@@ -66,6 +66,8 @@ export interface Asset {
   id: UUID
   name: string
   type: "Check dam" | "Farm pond" | "Plantation" | "Percolation tank"
+  /** True when this record is an illustrative fixture rather than API evidence. */
+  demo?: boolean
   watershedId: UUID
   location: GeoLocation
   status: "Verified" | "Pending review" | "Flagged"
@@ -235,6 +237,8 @@ export interface Intervention {
   id: UUID
   name: string
   type: string
+  /** True when this record is an illustrative fixture rather than API evidence. */
+  demo?: boolean
   watershedId: UUID
   village: string
   status: "Planned" | "In progress" | "Completed"

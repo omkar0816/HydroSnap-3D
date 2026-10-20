@@ -33,6 +33,11 @@ connectivity. Stop the database with `docker compose down`. Its named volume
 is retained. The development-only database credentials are in
 `.env.example`; do not use them in a shared deployment.
 
+In API mode, the frontend can show explicitly demo-marked bundled fixtures
+when watershed, asset, layer, analytics, or intervention collections are
+empty. Set `VITE_DEMO_EMPTY_FALLBACK=false` to disable this behavior. Network
+and API errors are still surfaced and never trigger the fixture fallback.
+
 Satellite analysis jobs are queued by the API and processed separately by the
 Python worker. Start it with:
 
@@ -132,6 +137,7 @@ defaults below are suitable only for local development.
 | `UPLOAD_DIRECTORY` | `storage/uploads` | Local photo directory |
 | `VITE_API_BASE_URL` | `http://localhost:8000` | Frontend API origin |
 | `VITE_USE_MOCK_API` | `false` | Set `true` for visibly labeled mock mode |
+| `VITE_DEMO_EMPTY_FALLBACK` | `true` | Show illustrative fixtures only when API collections are empty; set `false` for API-only reads |
 | `SUPABASE_URL` | `https://example.supabase.co` | Supabase Auth issuer/JWKS URL |
 | `SUPABASE_ANON_KEY` | development placeholder | Public anon key for caller-JWT lookups |
 | `CLOUD_COVER_LIMIT` | `30` | Satellite worker scene cloud-cover threshold |

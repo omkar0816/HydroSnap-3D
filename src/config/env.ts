@@ -11,6 +11,9 @@ export const env = {
     import.meta.env.VITE_USE_MOCK_API,
     !import.meta.env.VITE_API_BASE_URL,
   ),
+  // The prototype can show explicitly illustrative fixtures for empty API
+  // collections without changing API reads that contain data or API writes.
+  useDemoFallback: readBoolean(import.meta.env.VITE_DEMO_EMPTY_FALLBACK, true),
   /**
    * Optional URL of a .pmtiles file with official watershed boundaries
    * (built by scripts/prepare_watersheds). Empty = demo boundaries only.
