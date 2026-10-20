@@ -119,9 +119,11 @@ export function AppLayout({
   const [notificationsOpen, setNotificationsOpen] = useState(false)
   const [notificationsRead, setNotificationsRead] = useState(false)
   const [profileOpen, setProfileOpen] = useState(false)
+  const [watershedMenuOpen, setWatershedMenuOpen] = useState(false)
   const [helpOpen, setHelpOpen] = useState(false)
   const [search, setSearch] = useState("")
   const searchInput = useRef<HTMLInputElement>(null)
+  const watershedMenuRef = useRef<HTMLDivElement>(null)
   const location = useLocation()
   const navigate = useNavigate()
   const title =
@@ -155,6 +157,27 @@ export function AppLayout({
     window.addEventListener("keydown", focusSearch)
     return () => window.removeEventListener("keydown", focusSearch)
   }, [])
+
+  useEffect(() => {
+    if (!watershedMenuOpen) return
+    function closeMenu(event: PointerEvent) {
+      if (
+        event.target instanceof Node &&
+        !watershedMenuRef.current?.contains(event.target)
+      ) {
+        setWatershedMenuOpen(false)
+      }
+    }
+    function closeOnEscape(event: KeyboardEvent) {
+      if (event.key === "Escape") setWatershedMenuOpen(false)
+    }
+    document.addEventListener("pointerdown", closeMenu)
+    document.addEventListener("keydown", closeOnEscape)
+    return () => {
+      document.removeEventListener("pointerdown", closeMenu)
+      document.removeEventListener("keydown", closeOnEscape)
+    }
+  }, [watershedMenuOpen])
 
   useEffect(() => {
     if (!helpOpen) return
@@ -327,23 +350,48 @@ export function AppLayout({
           <div className="topbar-actions">
             {env.useMockApi && <DemoBadge label="Illustrative data" />}
             <SyncIndicator />
-            <label className="watershed-select">
+            <div className="watershed-select" ref={watershedMenuRef}>
               <Waves size={16} />
-              <select
-                value={context?.watershedId ?? ""}
-                onChange={(event) =>
-                  context?.setWatershedId(event.target.value)
-                }
-                aria-label="Selected watershed"
+              <span className="watershed-select-name">
+                {watersheds.find(({ id }) => id === context?.watershedId)
+                  ?.name ?? "Select watershed"}
+              </span>
+              <button
+                type="button"
+                className="watershed-select-trigger"
+                onClick={() => setWatershedMenuOpen((open) => !open)}
+                aria-label="Choose watershed"
+                aria-expanded={watershedMenuOpen}
+                aria-haspopup="listbox"
               >
-                {watersheds.map((watershed) => (
-                  <option key={watershed.id} value={watershed.id}>
-                    {watershed.name}
-                  </option>
-                ))}
-              </select>
-              <ChevronDown size={14} />
-            </label>
+                <ChevronDown size={14} />
+              </button>
+              {watershedMenuOpen && (
+                <div
+                  className="watershed-select-menu"
+                  role="listbox"
+                  aria-label="Watersheds"
+                >
+                  {watersheds.map((watershed) => (
+                    <button
+                      type="button"
+                      key={watershed.id}
+                      role="option"
+                      aria-selected={context?.watershedId === watershed.id}
+                      className={
+                        context?.watershedId === watershed.id ? "active" : ""
+                      }
+                      onClick={() => {
+                        context?.setWatershedId(watershed.id)
+                        setWatershedMenuOpen(false)
+                      }}
+                    >
+                      {watershed.name}
+                    </button>
+                  ))}
+                </div>
+              )}
+            </div>
             <span className="topbar-divider" />
             <div className="popover-anchor">
               <button

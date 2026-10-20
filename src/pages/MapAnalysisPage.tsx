@@ -12,7 +12,6 @@ import {
   MapPin,
   Ruler,
   Search,
-  SlidersHorizontal,
   Waves,
   X,
 } from "lucide-react"
@@ -462,70 +461,6 @@ export function MapAnalysisPage() {
               }))
             }
           />
-          <div className="map-sidebar-divider" />
-          <div className="map-feature-title">
-            <div>
-              <span className="section-kicker">
-                <span className="kicker-dot amber-dot" /> WATERSHED ASSETS
-              </span>
-              <strong>{filteredAssets.length} mapped features</strong>
-            </div>
-            <button
-              className="icon-button small-icon"
-              aria-label="Filter assets"
-            >
-              <SlidersHorizontal size={16} />
-            </button>
-          </div>
-          <label className="map-feature-search">
-            <Search size={15} />
-            <input
-              value={query}
-              onChange={(event) => setQuery(event.target.value)}
-              placeholder="Find a feature"
-            />
-            <ListFilter size={14} />
-          </label>
-          <div className="map-feature-list">
-            {filteredAssets.map((asset) => (
-              <button
-                key={asset.id}
-                className={`map-feature ${
-                  selectedAsset?.id === asset.id ? "selected" : ""
-                }`}
-                onClick={() => {
-                  setSelectedAsset(asset)
-                  setMapSidebarOpen(false)
-                }}
-              >
-                <span
-                  className={`asset-feature-icon feature-${asset.type.toLowerCase().replace(/ /g, "-")}`}
-                >
-                  <MapPin size={16} />
-                </span>
-                <span className="map-feature-copy">
-                  <strong>{asset.name}</strong>
-                  <small>
-                    {asset.type} <i>·</i> {asset.village}
-                  </small>
-                </span>
-                <span
-                  className={`feature-status ${
-                    asset.status === "Verified"
-                      ? "status-green"
-                      : asset.status === "Flagged"
-                        ? "status-red"
-                        : "status-amber"
-                  }`}
-                />
-              </button>
-            ))}
-            {!filteredAssets.length && (
-              <div className="empty-inline">
-                No matching assets in this watershed.
-              </div>
-            )}
-          </div>
           <div className="map-sidebar-bottom">
             <span>Map data is illustrative</span>
             <span>WGS84 · EPSG:4326</span>
@@ -628,64 +563,64 @@ export function MapAnalysisPage() {
                   className={mapLayerMenuOpen ? "is-open" : ""}
                 />
               </button>
-              <div
-                id="map-layer-menu-panel"
-                className="map-layer-menu-panel"
-                aria-label="Map layers"
-                hidden={!mapLayerMenuOpen}
-              >
-                <strong>Map layers</strong>
-                {layerDefinitions.map(({ key, label, icon: Icon, color }) => {
-                  const layer = thematicLayers.find(
-                    (thematicLayer) => thematicLayer.id === key,
-                  )
-                  return (
-                    <label className="map-layer-menu-row" key={key}>
-                      <span
-                        className="layer-symbol"
-                        style={{ color, background: `${color}16` }}
-                      >
-                        <Icon size={14} />
-                      </span>
-                      <span>
-                        {key === "assets" ? label : (layer?.name ?? label)}
-                        {(key === "ndvi" || key === "ndwi") && layer?.demo && (
-                          <small>Simulated overlay</small>
-                        )}
-                      </span>
-                      <input
-                        type="checkbox"
-                        checked={visibleLayers[key]}
-                        onChange={() =>
-                          context?.setVisibleLayers((state) => ({
-                            ...state,
-                            [key]: !state[key],
-                          }))
-                        }
-                      />
-                    </label>
-                  )
-                })}
-                <BhuvanLayerPanel
-                  compact
-                  state={bhuvan}
-                  onToggle={(layerId) =>
-                    setBhuvan((state) => ({
-                      ...state,
-                      visible: {
-                        ...state.visible,
-                        [layerId]: !state.visible[layerId],
-                      },
-                    }))
-                  }
-                  onOpacity={(layerId, opacity) =>
-                    setBhuvan((state) => ({
-                      ...state,
-                      opacity: { ...state.opacity, [layerId]: opacity },
-                    }))
-                  }
-                />
-              </div>
+              {mapLayerMenuOpen && (
+                <div
+                  id="map-layer-menu-panel"
+                  className="map-layer-menu-panel"
+                  aria-label="Map layers"
+                >
+                  <strong>Map layers</strong>
+                  {layerDefinitions.map(({ key, label, icon: Icon, color }) => {
+                    const layer = thematicLayers.find(
+                      (thematicLayer) => thematicLayer.id === key,
+                    )
+                    return (
+                      <label className="map-layer-menu-row" key={key}>
+                        <span
+                          className="layer-symbol"
+                          style={{ color, background: `${color}16` }}
+                        >
+                          <Icon size={14} />
+                        </span>
+                        <span>
+                          {key === "assets" ? label : (layer?.name ?? label)}
+                          {(key === "ndvi" || key === "ndwi") &&
+                            layer?.demo && <small>Simulated overlay</small>}
+                        </span>
+                        <input
+                          type="checkbox"
+                          checked={visibleLayers[key]}
+                          onChange={() =>
+                            context?.setVisibleLayers((state) => ({
+                              ...state,
+                              [key]: !state[key],
+                            }))
+                          }
+                        />
+                      </label>
+                    )
+                  })}
+                  <BhuvanLayerPanel
+                    compact
+                    state={bhuvan}
+                    onToggle={(layerId) =>
+                      setBhuvan((state) => ({
+                        ...state,
+                        visible: {
+                          ...state.visible,
+                          [layerId]: !state.visible[layerId],
+                        },
+                      }))
+                    }
+                    onOpacity={(layerId, opacity) =>
+                      setBhuvan((state) => ({
+                        ...state,
+                        opacity: { ...state.opacity, [layerId]: opacity },
+                      }))
+                    }
+                  />
+                </div>
+              )}
             </div>
             <div className="basemap-switcher">
               <span>BASEMAP</span>
@@ -762,6 +697,63 @@ export function MapAnalysisPage() {
           </div>
         </section>
       </div>
+      <section className="map-assets-panel panel">
+        <div className="map-assets-heading">
+          <div>
+            <span className="section-kicker">
+              <span className="kicker-dot amber-dot" /> WATERSHED ASSETS
+            </span>
+            <h2>{filteredAssets.length} mapped features</h2>
+          </div>
+          <label className="map-feature-search">
+            <Search size={15} />
+            <input
+              value={query}
+              onChange={(event) => setQuery(event.target.value)}
+              placeholder="Find a feature"
+              aria-label="Find a watershed asset"
+            />
+            <ListFilter size={14} />
+          </label>
+        </div>
+        <div className="map-assets-list">
+          {filteredAssets.map((asset) => (
+            <button
+              key={asset.id}
+              className={`map-feature ${
+                selectedAsset?.id === asset.id ? "selected" : ""
+              }`}
+              onClick={() => setSelectedAsset(asset)}
+            >
+              <span
+                className={`asset-feature-icon feature-${asset.type.toLowerCase().replace(/ /g, "-")}`}
+              >
+                <MapPin size={16} />
+              </span>
+              <span className="map-feature-copy">
+                <strong>{asset.name}</strong>
+                <small>
+                  {asset.type} <i>·</i> {asset.village}
+                </small>
+              </span>
+              <span
+                className={`feature-status ${
+                  asset.status === "Verified"
+                    ? "status-green"
+                    : asset.status === "Flagged"
+                      ? "status-red"
+                      : "status-amber"
+                }`}
+              />
+            </button>
+          ))}
+          {!filteredAssets.length && (
+            <div className="empty-inline">
+              No matching assets in this watershed.
+            </div>
+          )}
+        </div>
+      </section>
     </div>
   )
 }
