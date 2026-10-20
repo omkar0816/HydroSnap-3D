@@ -1,34 +1,51 @@
-import dotenv from "dotenv"
 
-dotenv.config({ path: [".env.local", ".env"] })
+import dotenv from "dotenv";
+
+dotenv.config({ path: [".env.local", ".env"] });
 
 function required(name: string, fallback?: string): string {
-  const value = process.env[name] ?? fallback
-  if (!value) throw new Error(`${name} must be set.`)
-  return value
+  const value = process.env[name] ?? fallback;
+  if (!value) {
+    throw new Error(`${name} must be set.`);
+  }
+  return value;
 }
 
 export const serverEnv = {
-  databaseUrl: required("DATABASE_URL", "postgresql://hydrosnap:hydrosnap@localhost:5432/hydrosnap"),
-  supabaseUrl: required("SUPABASE_URL", "https://example.supabase.co"),
-  supabaseAnonKey: required("SUPABASE_ANON_KEY", "demo-anon-key"),
+  databaseUrl: required(
+    "DATABASE_URL",
+    "postgresql://hydrosnap:hydrosnap@localhost:5432/hydrosnap"
+  ),
+
+  supabaseUrl: required(
+    "SUPABASE_URL",
+    "https://example.supabase.co"
+  ),
+
+  supabaseAnonKey: required(
+    "SUPABASE_ANON_KEY",
+    "demo-anon-key"
+  ),
+
   port: Number(process.env.API_PORT ?? 8000),
-  publicUrl: process.env.API_PUBLIC_URL?.replace(/\/$/, ""),
+
+  publicUrl: process.env.API_PUBLIC_URL?.replace(/\/+$/, ""),
+
   corsOrigins: (
-    process.env.CORS_ORIGINS ?? "http://localhost:8443,http://localhost:5173"
+    process.env.CORS_ORIGINS ??
+    "http://localhost:8443,http://localhost:5173"
   )
     .split(",")
     .map((origin) => origin.trim())
     .filter(Boolean),
+
   uploadDirectory: process.env.UPLOAD_DIRECTORY ?? "storage/uploads",
-}
+};
 
 if (
   !Number.isSafeInteger(serverEnv.port) ||
   serverEnv.port < 1 ||
   serverEnv.port > 65535
 ) {
-  throw new Error("API_PORT must be a valid TCP port.")
+  throw new Error("API_PORT must be a valid TCP port.");
 }
-supabaseUrl: import.meta.env.VITE_SUPABASE_URL ?? "",
-supabaseAnonKey: import.meta.env.VITE_SUPABASE_ANON_KEY ?? "",
