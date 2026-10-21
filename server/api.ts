@@ -1,5 +1,5 @@
 import { createHash, randomUUID } from "node:crypto"
-import { mkdir, unlink, writeFile } from "node:fs/promises"
+import { unlink } from "node:fs/promises"
 import path from "node:path"
 import cors from "cors"
 import { rateLimit } from "express-rate-limit"
@@ -14,6 +14,7 @@ import { loadEvidence, loadSatelliteMeasurements } from "./evidence.ts"
 import { generateWatershedReport, reportRequestSchema, ReportGenerationError } from "./report/generate.ts"
 import { LlmError } from "./llm.ts"
 import { parseImageExif, verifyUpload } from "./verification.ts"
+import { readPhoto, removePhoto, storePhoto } from "./photoStorage.ts"
 import { analysisRequestSchema } from "./satellite/request.ts"
 import {
   activeWorkWindows,
@@ -40,7 +41,6 @@ import {
 } from "./validation.ts"
 
 const app = express()
-const uploadRoot = path.resolve(serverEnv.uploadDirectory)
 const maxImageBytes = 20 * 1024 * 1024
 const dicraClient = createDicraClient(serverEnv.dicra)
 const uploadRateLimit = rateLimit({
@@ -236,9 +236,9 @@ function ensureValidGeometry(geometry: Record<string, unknown>) {
   )
 }
 
-app.get("/health", async (_request, response) => {
+app.get(["/health", "/api/health"], async (_request, response) => {
   await pool.query("SELECT 1")
-  response.json({ status: "ok", database: "connected" })
+  response.json({ status: "ok" })
 })
 
 app.get("/api/v1/dicra/status", requireAuth, dicraRateLimit, async (_request, response) => {
@@ -277,13 +277,22 @@ app.post("/api/v1/dicra/search", requireAuth, dicraRateLimit, async (request, re
   response.json(await dicraClient.searchItems(input))
 })
 
-app.get("/api/v1/users/me", requireAuth, (request, response) => {
+app.get("/api/v1/users/me", requireAuth, async (request, response) => {
+  const user = request.user!
+  const identityTable = user.role === "government" ? "government_admins" : "officers"
+  const codeColumn = user.role === "government" ? "government_code" : "officer_code"
+  const { rows } = await pool.query<{ email: string; code: string }>(
+    `SELECT email, ${codeColumn} AS code FROM ${identityTable} WHERE id = $1`,
+    [user.id],
+  )
+  const identity = rows[0]
   response.json({
-    id: request.user?.id ?? "usr-001",
-    name: request.user?.name ?? "HydroSnap Officer",
-    email: "ananya.deshmukh@example.gov.in",
-    role: request.user?.role ?? "officer",
-    initials: (request.user?.name ?? "HO")
+    id: user.id,
+    name: user.name ?? "",
+    email: identity?.email ?? "",
+    officerCode: identity?.code ?? user.officerCode ?? null,
+    role: user.role,
+    initials: (user.name ?? "")
       .split(/\s+/)
       .filter(Boolean)
       .slice(0, 2)
@@ -481,22 +490,8 @@ app.get("/api/v1/uploads/:observationId/photo", requireAuth, async (request, res
   )
   const imagePath = rows[0]?.image_path
   if (!imagePath) throw new HttpError("Photo was not found.", 404)
-  const resolved = path.resolve(uploadRoot, imagePath)
-  if (!resolved.startsWith(`${uploadRoot}${path.sep}`)) {
-    throw new HttpError("Photo path is invalid.", 500)
-  }
-  response.sendFile(resolved, (error) => {
-    if (error && !response.headersSent) {
-      const status =
-        "statusCode" in error &&
-        typeof error.statusCode === "number" &&
-        error.statusCode >= 400 &&
-        error.statusCode < 600
-          ? error.statusCode
-          : 404
-      response.status(status).end()
-    }
-  })
+  const photo = await readPhoto(imagePath, request.headers.authorization ?? "")
+  response.type(photo.contentType).send(photo.bytes)
 })
 
 app.post("/api/v1/uploads", uploadRateLimit, requireOfficer, async (request, response) => {
@@ -550,6 +545,7 @@ app.post("/api/v1/uploads", uploadRateLimit, requireOfficer, async (request, res
   }))
   const client = await pool.connect()
   let writtenFile: string | undefined
+  let imagePath: string | null = null
   try {
     await client.query("BEGIN")
     const existing = await client.query<{
@@ -636,12 +632,17 @@ app.post("/api/v1/uploads", uploadRateLimit, requireOfficer, async (request, res
       ...(computedImageHash ? { imageSha256: computedImageHash } : {}),
     }
 
-    let imagePath: string | null = null
     if (decodedImage && computedImageHash) {
-      await mkdir(uploadRoot, { recursive: true })
-      imagePath = `${randomUUID()}${decodedImage.extension}`
-      writtenFile = path.resolve(uploadRoot, imagePath)
-      await writeFile(writtenFile, decodedImage.bytes, { flag: "wx" })
+      imagePath = await storePhoto({
+        officerId: request.user!.id,
+        observationId: id,
+        extension: decodedImage.extension,
+        bytes: decodedImage.bytes,
+        authorization: request.headers.authorization ?? "",
+      })
+      if (!imagePath.startsWith("supabase:")) {
+        writtenFile = path.resolve(serverEnv.uploadDirectory, imagePath)
+      }
     }
     const { rows } = await client.query(
       `INSERT INTO field_observations
@@ -725,6 +726,13 @@ app.post("/api/v1/uploads", uploadRateLimit, requireOfficer, async (request, res
       await unlink(writtenFile).catch((cleanupError: NodeJS.ErrnoException) => {
         if (cleanupError.code !== "ENOENT") throw cleanupError
       })
+    if (imagePath?.startsWith("supabase:")) {
+      await removePhoto(imagePath, request.headers.authorization ?? "").catch(
+        (cleanupError) => {
+          console.warn("Could not remove a rolled-back photo object.", cleanupError)
+        },
+      )
+    }
     if (isUniqueViolation(error)) {
       if (
         typeof error === "object" && error !== null &&
@@ -1221,30 +1229,6 @@ app.post("/api/v1/interventions/:id/indices/refresh", requireOfficer, async (req
     installedAt: row.installed_at,
   })
   response.status(202).json({ jobs })
-})
-
-app.get("/api/v1/reports/:reportId", requireAuth, async (request, response) => {
-  const { rows } = await pool.query(
-    `SELECT id, watershed_id AS "watershedId", created_by AS "createdBy",
-            created_at::text AS "createdAt", fact_set AS "factSet",
-            fact_set_sha256 AS "factSetSha256", claims, gaps,
-            rendered_markdown AS "renderedMarkdown", model,
-            validator_version AS "validatorVersion", language
-     FROM watershed_reports WHERE id = $1`,
-    [request.params.reportId],
-  )
-  if (!rows[0]) throw new HttpError("Watershed report was not found.", 404)
-  response.json(rows[0])
-})
-
-app.get("/api/v1/reports", requireAuth, async (_request, response) => {
-  const { rows } = await pool.query(
-    `SELECT id, watershed_id AS "watershedId", created_at::text AS "createdAt",
-            'Ready' AS status, 'Watershed summary' AS type,
-            'Watershed report' AS name
-     FROM watershed_reports ORDER BY created_at DESC`,
-  )
-  response.json(rows)
 })
 
 /**

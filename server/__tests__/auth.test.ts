@@ -4,6 +4,7 @@ import { describe, expect, it, vi, beforeEach } from "vitest"
 vi.hoisted(() => {
   process.env.SUPABASE_URL ??= "https://example.supabase.co"
   process.env.SUPABASE_ANON_KEY ??= "test-anon-key"
+  process.env.SUPABASE_JWT_SECRET ??= "test-jwt-secret"
 })
 import { createPrivateKey, createPublicKey, generateKeyPairSync } from "node:crypto"
 import { SignJWT, exportJWK } from "jose"
@@ -167,6 +168,25 @@ describe("auth middleware", () => {
 
   it("accepts a valid active officer", async () => {
     const token = await makeJwt({ sub: "user-123", role: "authenticated" })
+    const req = { headers: { authorization: `Bearer ${token}` } } as any
+    const res = makeResponse()
+    const next = vi.fn()
+
+    await requireOfficer(req, res, next)
+
+    expect(res.statusCode).toBe(200)
+    expect(req.user).toMatchObject({ id: "user-123", officerCode: "OFF-1" })
+    expect(next).toHaveBeenCalledTimes(1)
+  })
+
+  it("accepts a valid HS256 token with the configured JWT secret", async () => {
+    const token = await new SignJWT({ role: "authenticated" })
+      .setProtectedHeader({ alg: "HS256" })
+      .setIssuedAt()
+      .setIssuer("https://example.supabase.co/auth/v1")
+      .setAudience("authenticated")
+      .setSubject("user-123")
+      .sign(new TextEncoder().encode("test-jwt-secret"))
     const req = { headers: { authorization: `Bearer ${token}` } } as any
     const res = makeResponse()
     const next = vi.fn()

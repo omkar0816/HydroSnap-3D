@@ -319,6 +319,7 @@ on conflict (id) do nothing;
 
 drop policy if exists field_photos_officer_insert on storage.objects;
 drop policy if exists field_photos_officer_select on storage.objects;
+drop policy if exists field_photos_officer_delete on storage.objects;
 drop policy if exists field_photos_gov_select     on storage.objects;
 
 create policy field_photos_officer_insert on storage.objects
@@ -333,6 +334,13 @@ create policy field_photos_officer_select on storage.objects
   using (
     bucket_id = 'field-photos'
     and (storage.foldername(name))[1] = (select auth.uid())::text
+  );
+create policy field_photos_officer_delete on storage.objects
+  for delete to authenticated
+  using (
+    bucket_id = 'field-photos'
+    and (storage.foldername(name))[1] = (select auth.uid())::text
+    and public.is_active_officer()
   );
 create policy field_photos_gov_select on storage.objects
   for select to authenticated

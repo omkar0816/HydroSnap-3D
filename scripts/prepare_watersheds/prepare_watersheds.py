@@ -1,4 +1,4 @@
-the#!/usr/bin/env python3
+#!/usr/bin/env python3
 """
 Prepare watershed boundaries for the HydroSnap map (Phase 1).
 

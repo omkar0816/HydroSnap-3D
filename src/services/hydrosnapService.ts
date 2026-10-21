@@ -104,12 +104,16 @@ async function list<T>(
   path: string,
   demoData: T[],
   useDemoFallback = false,
+  markDemoFallback = false,
 ): Promise<T[]> {
   if (!env.useMockApi) {
     const data = await apiRequest<T[]>(path)
-    return useDemoFallback && env.useDemoFallback && data.length === 0
-      ? demoData
-      : data
+    if (useDemoFallback && env.useDemoFallback && data.length === 0) {
+      return markDemoFallback
+        ? demoData.map((item) => ({ ...item, demoFallback: true })) as T[]
+        : demoData
+    }
+    return data
   }
   await delay()
   return demoData
@@ -207,7 +211,7 @@ export const hydrosnapService = {
   },
   getTeamMembers: () => list<TeamMember>("/api/v1/users/team", teamMembers),
   getWatersheds: () =>
-    list<Watershed>("/api/v1/watersheds", watersheds, true),
+    list<Watershed>("/api/v1/watersheds", watersheds, true, true),
   getWatershedEvidence: async (watershedId: string): Promise<WatershedEvidence> => {
     if (!env.useMockApi) {
       const evidence = await apiRequest<WatershedEvidence>(

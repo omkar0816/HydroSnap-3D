@@ -46,6 +46,8 @@ export interface Watershed {
   source: string
   /** True when the boundary is illustrative and not an official record. */
   demo: boolean
+  /** Marks local fixtures substituted for an empty API response. */
+  demoFallback?: boolean
 }
 
 export type WatershedLevel = "basin" | "watershed" | "micro-watershed"

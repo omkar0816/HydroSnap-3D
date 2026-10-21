@@ -6,7 +6,9 @@ dotenv.config({ path: [".env.local", ".env"] });
 function required(name: string, fallback?: string): string {
   const value = process.env[name] ?? fallback;
   if (!value) {
-    throw new Error(`${name} must be set.`);
+    throw new Error(
+      `${name} must be set. Configure it in Vercel Project Settings > Environment Variables for deployments.`,
+    );
   }
   return value;
 }
@@ -55,6 +57,8 @@ export const serverEnv = {
   supabaseUrl: required("SUPABASE_URL").replace(/\/+$/, ""),
 
   supabaseAnonKey: required("SUPABASE_ANON_KEY"),
+
+  supabaseJwtSecret: process.env.SUPABASE_JWT_SECRET,
 
   port: Number(process.env.API_PORT ?? 8000),
 

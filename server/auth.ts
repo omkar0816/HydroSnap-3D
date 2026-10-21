@@ -58,8 +58,48 @@ async function verifyToken(token: string) {
       issuer: `${serverEnv.supabaseUrl}/auth/v1`,
       audience: "authenticated",
     }))
-  } catch {
-    throw new AuthFailure("Invalid or expired token.", 401)
+  } catch (jwksError) {
+    console.warn("Supabase JWKS token verification failed:", jwksError)
+    if (serverEnv.supabaseJwtSecret) {
+      try {
+        ;({ payload } = await jwtVerify(
+          token,
+          new TextEncoder().encode(serverEnv.supabaseJwtSecret),
+          {
+            issuer: `${serverEnv.supabaseUrl}/auth/v1`,
+            audience: "authenticated",
+          },
+        ))
+      } catch (secretError) {
+        console.warn("Supabase JWT secret verification failed:", secretError)
+      }
+    }
+
+    if (!payload) {
+      try {
+        const response = await fetch(`${serverEnv.supabaseUrl}/auth/v1/user`, {
+          headers: {
+            Authorization: `Bearer ${token}`,
+            apikey: serverEnv.supabaseAnonKey,
+          },
+        })
+        if (!response.ok) {
+          console.warn(
+            `Supabase user token validation failed with status ${response.status}.`,
+          )
+          throw new AuthFailure("Invalid or expired token.", 401)
+        }
+        const user = (await response.json()) as { id?: unknown }
+        if (typeof user.id !== "string" || !user.id) {
+          throw new AuthFailure("Token is missing a valid subject.", 401)
+        }
+        return { id: user.id, officerCode: null, name: null }
+      } catch (error) {
+        if (error instanceof AuthFailure) throw error
+        console.warn("Supabase user token validation request failed:", error)
+        throw new AuthFailure("Invalid or expired token.", 401)
+      }
+    }
   }
   const userId = typeof payload.sub === "string" ? payload.sub : null
   if (!userId) {

@@ -20,9 +20,11 @@ import {
 } from "lucide-react"
 import { Link } from "react-router-dom"
 import { AppContext } from "@/App"
+import { env } from "@/config/env"
 import { WatershedMap } from "@/components/maps/WatershedMap"
 import { useHydroSnap } from "@/hooks/useHydroSnap"
 import { TrustPanel } from "@/components/evidence/TrustPanel"
+import { WatershedSelectField } from "@/components/evidence/WatershedSelectField"
 import { getQueued } from "@/services/offlineStore"
 import { syncNow } from "@/services/syncService"
 import { findAssetCandidates } from "@/utils/assetMatch"
@@ -94,13 +96,15 @@ export function ImageUploadPage() {
   const [imageHash, setImageHash] = useState<string>()
   const [hashing, setHashing] = useState(false)
   const [photoContentConfirmed, setPhotoContentConfirmed] = useState(false)
-  const [watershedNote, setWatershedNote] = useState("")
   const [containingWatershed, setContainingWatershed] = useState<Watershed>()
+  const [watershedLookupFailed, setWatershedLookupFailed] = useState(false)
+  const [watershedLookupComplete, setWatershedLookupComplete] = useState(false)
   const [streamSnap, setStreamSnap] = useState<StreamSnap>()
   const [watershedLookupPending, setWatershedLookupPending] = useState(false)
   const [streamSnapPending, setStreamSnapPending] = useState(false)
   const assets = data.assets
   const watershedRecords = watersheds.data ?? EMPTY_WATERSHEDS
+  const watershedIds = watershedRecords.map(({ id }) => id).join("\0")
   const streams = useMemo(() => {
     const layer = (data.layers.data ?? []).find(({ id }) => id === "streams")
     const geometry = layer?.geometry
@@ -157,15 +161,27 @@ export function ImageUploadPage() {
   useEffect(() => {
     if (!confirmedLocation) {
       setContainingWatershed(undefined)
+      setWatershedLookupFailed(false)
+      setWatershedLookupComplete(false)
       setWatershedLookupPending(false)
       return
     }
     let active = true
     setContainingWatershed(undefined)
+    setWatershedLookupFailed(false)
+    setWatershedLookupComplete(false)
     setWatershedLookupPending(true)
     void resolveWatershed(confirmedLocation.coordinates, watershedRecords)
-      .then((watershed) => {
-        if (active) setContainingWatershed(watershed)
+      .then((result) => {
+        if (!active) return
+        if (result.status === "inside") {
+          setContainingWatershed(result.watershed)
+          setWatershedLookupFailed(false)
+        } else {
+          setContainingWatershed(undefined)
+          setWatershedLookupFailed(result.status === "error")
+        }
+        setWatershedLookupComplete(true)
       })
       .catch((lookupError: unknown) => {
         console.error(
@@ -173,9 +189,8 @@ export function ImageUploadPage() {
           lookupError,
         )
         if (active) {
-          setLocationError(
-            "Watershed lookup failed. You can still choose a watershed manually.",
-          )
+          setWatershedLookupFailed(true)
+          setWatershedLookupComplete(true)
         }
       })
       .finally(() => {
@@ -184,7 +199,11 @@ export function ImageUploadPage() {
     return () => {
       active = false
     }
-  }, [confirmedLocation, watershedRecords])
+  }, [
+    confirmedLocation?.coordinates[0],
+    confirmedLocation?.coordinates[1],
+    watershedIds,
+  ])
   useEffect(() => {
     if (!confirmedLocation || !isStreamBased(watchedValues.assetType)) {
       setStreamSnap(undefined)
@@ -277,23 +296,12 @@ export function ImageUploadPage() {
     watchedValues.watershedId,
   ])
 
-  // Auto-attach the observation to the containing watershed once confirmed.
+  // Auto-attach only after a successful inside result.
   useEffect(() => {
-    if (!confirmedLocation) {
-      setWatershedNote("")
-      return
-    }
     if (containingWatershed) {
       form.setValue("watershedId", containingWatershed.id)
-      setWatershedNote(
-        `Inside ${containingWatershed.name} (${containingWatershed.code}). Watershed set automatically.`,
-      )
-    } else {
-      setWatershedNote(
-        "This point is outside every known watershed boundary. Choose a watershed manually; the record will be flagged for review.",
-      )
     }
-  }, [confirmedLocation, containingWatershed, form])
+  }, [containingWatershed, form])
 
   useEffect(() => {
     setPhotoContentConfirmed(false)
@@ -338,7 +346,6 @@ export function ImageUploadPage() {
     setImageHash(undefined)
     setHashing(false)
     setPhotoContentConfirmed(false)
-    setWatershedNote("")
     setShowLocationPicker(false)
   }
 
@@ -600,7 +607,9 @@ export function ImageUploadPage() {
         auditHistory.push({
           action: containingWatershed
             ? `Watershed manually set to ${values.watershedId} (point lies in ${containingWatershed.id})`
-            : `Watershed manually set to ${values.watershedId} (point outside known boundaries)`,
+            : watershedLookupFailed
+              ? `Watershed manually set to ${values.watershedId} (automatic boundary check unavailable)`
+              : `Watershed manually set to ${values.watershedId} (point outside known boundaries)`,
           actor: currentUser.name,
           timestamp: now,
         })
@@ -643,7 +652,9 @@ export function ImageUploadPage() {
           ? containingWatershed.id === values.watershedId
             ? "inside"
             : "manual"
-          : "outside",
+          : watershedLookupFailed
+            ? "manual"
+            : "outside",
         snappedLocation: streamSnap
           ? {
               type: "Point",
@@ -1062,30 +1073,52 @@ export function ImageUploadPage() {
                     </small>
                   )}
                 </label>
-                <label className="form-field">
+                <div className="form-field">
                   <span>Watershed</span>
-                  <select {...form.register("watershedId")}>
-                    {(watersheds.data ?? []).map((watershed) => (
-                      <option key={watershed.id} value={watershed.id}>
-                        {watershed.name} · {watershed.code}
-                      </option>
-                    ))}
-                  </select>
+                  <WatershedSelectField
+                    watersheds={watershedRecords}
+                    registration={form.register("watershedId")}
+                    isLoading={watersheds.isLoading}
+                    errorMessage={
+                      watersheds.isError
+                        ? watersheds.error instanceof Error
+                          ? watersheds.error.message
+                          : "Watersheds could not be loaded."
+                        : undefined
+                    }
+                    onRetry={() => void watersheds.refetch()}
+                  />
                   {form.formState.errors.watershedId && (
                     <small className="field-error">
                       {form.formState.errors.watershedId.message}
                     </small>
                   )}
-                  {watershedNote && (
+                  {containingWatershed && (
                     <small
-                      className={
-                        containingWatershed ? "hs-note-ok" : "hs-note-warn"
-                      }
+                      className="hs-note-ok"
                     >
-                      {watershedNote}
+                      Inside {containingWatershed.name} ({containingWatershed.code}). Watershed set automatically.
                     </small>
                   )}
-                </label>
+                  {watershedLookupComplete &&
+                    !containingWatershed &&
+                    !watershedLookupFailed && (
+                      <small className="hs-note-warn">
+                        This point is outside every known watershed boundary. Choose a watershed manually; the record will be flagged for review.
+                      </small>
+                    )}
+                  {watershedLookupFailed && (
+                    <small className="field-error">
+                      Could not check the boundary automatically. Choose a watershed manually; the record will be flagged for review.
+                    </small>
+                  )}
+                  {!env.useMockApi &&
+                    watershedRecords.some((watershed) => watershed.demoFallback) && (
+                      <small className="field-error">
+                        Showing demo watersheds; saving to the server is disabled until the database is seeded.
+                      </small>
+                    )}
+                </div>
                 <label className="form-field">
                   <span>Village</span>
                   <input

@@ -89,10 +89,12 @@ docker compose up -d db
 cp .env.example .env.local
 ```
 
-Apply all ordered migrations and load illustrative seed records:
+Apply ordered migrations. To also load illustrative fixtures, add `--seed`;
+demo seeding is refused when `NODE_ENV=production`:
 
 ```sh
 pnpm db:setup
+pnpm db:setup --seed
 ```
 
 Run the API and Vite in separate terminals:
@@ -103,8 +105,8 @@ pnpm dev
 ```
 
 The API listens at `http://localhost:8000`. `pnpm db:setup` applies ordered
-idempotent migrations and seeds demo data, which remains illustrative rather
-than official. Spatial
+idempotent migrations; `pnpm db:setup --seed` separately loads demo data, which
+remains illustrative rather than official. Spatial
 lookup uses `ST_Covers` (boundary points count as inside) and picks the
 smallest overlapping watershed. Stream snapping uses PostGIS geography
 distances in metres and returns a separate snapped point; it never moves the

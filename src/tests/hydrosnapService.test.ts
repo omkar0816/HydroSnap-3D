@@ -32,6 +32,7 @@ describe("HydroSnap API empty-collection demo fallback", () => {
       ])
 
     expect(watersheds.some((watershed) => watershed.demo)).toBe(true)
+    expect(watersheds.every((watershed) => watershed.demoFallback)).toBe(true)
     expect(assets.some((asset) => asset.type === "Check dam" && asset.demo)).toBe(true)
     expect(assets.some((asset) => asset.type === "Farm pond" && asset.demo)).toBe(true)
     expect(assets.some((asset) => asset.type === "Plantation" && asset.demo)).toBe(true)

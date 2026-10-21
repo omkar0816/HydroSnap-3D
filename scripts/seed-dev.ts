@@ -14,6 +14,12 @@ const demoSource = "HydroSnap illustrative development fixture"
 const demoLicence = "Illustrative demo data; no external licence applies"
 
 async function main() {
+  if (!process.argv.slice(2).includes("--seed")) {
+    throw new Error("Pass --seed to explicitly load development demo data.")
+  }
+  if (process.env.NODE_ENV === "production") {
+    throw new Error("Refusing to seed demo data when NODE_ENV=production.")
+  }
   const client = await pool.connect()
   try {
     await client.query("BEGIN")
