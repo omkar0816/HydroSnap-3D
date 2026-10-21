@@ -1,5 +1,8 @@
 import { createServer, type Server } from "node:http"
 import { generateKeyPairSync } from "node:crypto"
+import { mkdtemp, rm } from "node:fs/promises"
+import { tmpdir } from "node:os"
+import path from "node:path"
 import { exportJWK, SignJWT } from "jose"
 import { afterAll, beforeAll, describe, expect, it, vi } from "vitest"
 import { createPostgisTestSchema, testServerEnv } from "./helpers.ts"
@@ -21,10 +24,14 @@ describe("API against an isolated PostGIS schema", () => {
   let baseUrl: string
   let closeSchema: (() => Promise<void>) | undefined
   let closePool: (() => Promise<void>) | undefined
+  let uploadDirectory: string | undefined
+  const originalUploadDirectory = process.env.UPLOAD_DIRECTORY
 
   beforeAll(async () => {
     const database = await createPostgisTestSchema()
     closeSchema = database.close
+    uploadDirectory = await mkdtemp(path.join(tmpdir(), "hydrosnap-upload-test-"))
+    process.env.UPLOAD_DIRECTORY = uploadDirectory
     process.env.DATABASE_URL = database.databaseUrl
     process.env.SUPABASE_URL = testServerEnv.supabaseUrl
     process.env.SUPABASE_ANON_KEY = testServerEnv.supabaseAnonKey
@@ -54,12 +61,24 @@ describe("API against an isolated PostGIS schema", () => {
     }
     await closePool?.()
     await closeSchema?.()
+    if (uploadDirectory) {
+      await rm(uploadDirectory, { recursive: true, force: true })
+    }
+    if (originalUploadDirectory === undefined) {
+      delete process.env.UPLOAD_DIRECTORY
+    } else {
+      process.env.UPLOAD_DIRECTORY = originalUploadDirectory
+    }
   })
 
   it("keeps health public and confirms the PostGIS database connection", async () => {
     const response = await fetch(`${baseUrl}/health`)
     expect(response.status).toBe(200)
-    expect(await response.json()).toEqual({ status: "ok", database: "connected" })
+    expect(await response.json()).toEqual({
+      status: "ok",
+      database: "connected",
+      postgis: "ready",
+    })
   })
 
   it("rejects unauthenticated user and photo requests", async () => {
@@ -497,6 +516,36 @@ describe("API against an isolated PostGIS schema", () => {
       imageDataUrl: pngDataUrl,
     })
     expect(firstImage.status).toBe(201)
+    const savedImage = await firstImage.json() as {
+      id: string
+      imageDataUrl: string
+    }
+    expect(savedImage.imageDataUrl).toContain(
+      `/api/v1/uploads/${savedImage.id}/photo`,
+    )
+    const spatialRow = await pool.query<{
+      srid: number
+      longitude: number
+      latitude: number
+    }>(
+      `SELECT ST_SRID(location) AS srid, ST_X(location) AS longitude,
+              ST_Y(location) AS latitude
+       FROM field_observations WHERE id = $1`,
+      [savedImage.id],
+    )
+    expect(spatialRow.rows[0]).toEqual({
+      srid: 4326,
+      longitude: 0.5,
+      latitude: 0.5,
+    })
+    const savedPhoto = await nativeFetch(savedImage.imageDataUrl, {
+      headers: { Authorization: `Bearer ${await tokenFor("officer-b")}` },
+    })
+    expect(savedPhoto.status).toBe(200)
+    expect(Buffer.from(await savedPhoto.arrayBuffer())).toEqual(
+      Buffer.from(pngDataUrl.slice(pngDataUrl.indexOf(",") + 1), "base64"),
+    )
+
     const duplicateImage = await requestUpload("officer-b", {
       id: "duplicate-image-b",
       watershedId: "evidence-a",

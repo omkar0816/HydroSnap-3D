@@ -238,7 +238,23 @@ function ensureValidGeometry(geometry: Record<string, unknown>) {
 
 app.get("/health", async (_request, response) => {
   await pool.query("SELECT 1")
-  response.json({ status: "ok", database: "connected" })
+  try {
+    const { rows } = await pool.query<{ srid: number }>(
+      "SELECT ST_SRID(ST_SetSRID(ST_MakePoint(0, 0), 4326)) AS srid",
+    )
+    if (rows[0]?.srid !== 4326) {
+      throw new Error("PostGIS returned an unexpected SRID.")
+    }
+  } catch (error) {
+    console.error("PostGIS health check failed.", error)
+    response.status(503).json({
+      status: "error",
+      database: "connected",
+      postgis: "unavailable",
+    })
+    return
+  }
+  response.json({ status: "ok", database: "connected", postgis: "ready" })
 })
 
 app.get("/api/v1/dicra/status", requireAuth, dicraRateLimit, async (_request, response) => {

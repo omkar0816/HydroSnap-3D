@@ -13,6 +13,7 @@ React 19 PWA (Vite, TS)
 Express + TypeScript + PostgreSQL/PostGIS (local Docker Compose)
  ├─ JWT/JWKS auth; officers/government admins resolved with caller JWT + anon key
  ├─ PostGIS stores spatial evidence, typed provenance, verification, jobs and reports
+ ├─ GET /health probes a PostGIS geometry operation, not just database connectivity
  ├─ evidence queries are scoped by watershed_id in SQL
  ├─ local photo files; database stores relative path and recomputed SHA-256
  └─ Python satellite worker claims typed jobs with SKIP LOCKED and writes measurements
@@ -58,6 +59,9 @@ also provides `GET /watersheds/:id/evidence`, `GET /watersheds/:id/satellite`,
 demo rows. `pnpm db:backfill`, `pnpm db:seed:dev`, `pnpm db:compute-drainage`,
 and `pnpm data:import-streams` support data preparation. Imported operational
 rows require verified source/license information and must not be marked demo.
+The API health check returns `postgis: "ready"` only after a point/SRID
+operation succeeds; run `pnpm db:setup` against the API's `DATABASE_URL` to
+apply the PostGIS migration and create the upload/evidence tables.
 
 The optional pilot-summary Vercel function is separate from that planned data
 API. It uses `OMNIROUTE_API_KEY` (no `VITE_` prefix), validates same-origin
