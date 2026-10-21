@@ -11,7 +11,7 @@ export interface OfficerRow {
   location_operating_on: string;
   state: string;
   district: string;
-  status: "pending" | "active" | "suspended";
+  status: "active" | "suspended";
 }
 
 export const TABLES = {

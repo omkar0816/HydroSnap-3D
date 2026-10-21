@@ -9,6 +9,11 @@ interface ResolveResponse {
   resolution: "inside" | "outside"
 }
 
+export type WatershedResolution =
+  | { status: "inside"; watershed: Watershed }
+  | { status: "outside" }
+  | { status: "error"; error: string }
+
 interface SnapResponse {
   streamId: string
   streamName?: string | null
@@ -25,8 +30,11 @@ export interface StreamSnap {
 export async function resolveWatershed(
   position: WGS84Position,
   watersheds: Watershed[],
-): Promise<Watershed | undefined> {
-  if (env.useMockApi) return findContainingWatershed(position, watersheds)
+): Promise<WatershedResolution> {
+  if (env.useMockApi) {
+    const watershed = findContainingWatershed(position, watersheds)
+    return watershed ? { status: "inside", watershed } : { status: "outside" }
+  }
 
   const query = new URLSearchParams({
     longitude: String(position[0]),
@@ -36,12 +44,23 @@ export async function resolveWatershed(
     const result = await apiRequest<ResolveResponse>(
       `/api/v1/spatial/resolve-watershed?${query.toString()}`,
     )
-    return result.watershedId
-      ? watersheds.find(({ id }) => id === result.watershedId)
-      : undefined
+    if (!result.watershedId) return { status: "outside" }
+    const watershed = watersheds.find(({ id }) => id === result.watershedId)
+    return watershed
+      ? { status: "inside", watershed }
+      : { status: "error", error: "The resolved watershed is not in the loaded list." }
   } catch (error) {
-    if (!(error instanceof TypeError)) throw error
-    return findContainingWatershed(position, watersheds)
+    const canUseLocalFallback =
+      error instanceof TypeError ||
+      (error instanceof ApiError && error.status >= 500)
+    if (canUseLocalFallback && watersheds.length > 0) {
+      const watershed = findContainingWatershed(position, watersheds)
+      return watershed ? { status: "inside", watershed } : { status: "outside" }
+    }
+    return {
+      status: "error",
+      error: error instanceof Error ? error.message : "Watershed lookup failed.",
+    }
   }
 }
 

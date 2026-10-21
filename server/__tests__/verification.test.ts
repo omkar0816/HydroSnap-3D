@@ -1,4 +1,6 @@
-import { describe, expect, it } from "vitest"
+import { describe, expect, it, vi } from "vitest"
+import type pg from "pg"
+import { verifyUpload } from "../verification.ts"
 import {
   evaluateTrustRules,
   serverVerificationStatus,
@@ -53,5 +55,29 @@ describe("shared server trust rules", () => {
       "asset_type_history_conflict",
     ])
     expect(serverVerificationStatus(flags)).toBe("Flagged")
+  })
+})
+
+describe("upload watershed validation", () => {
+  it("returns a 422 when the selected watershed does not exist", async () => {
+    const client = {
+      query: vi.fn().mockResolvedValue({ rows: [] }),
+    } as unknown as pg.PoolClient
+    await expect(verifyUpload({
+      client,
+      watershedId: "missing-watershed",
+      longitude: 73.8,
+      latitude: 18.5,
+      officerId: "officer-1",
+      assetType: "Check dam",
+      inspectionDate: "2026-10-01",
+      imageMissing: true,
+      hashMismatch: false,
+      duplicateImage: false,
+      exif: { summary: { hasGps: false } },
+    })).rejects.toMatchObject({
+      message: "Selected watershed was not found.",
+      status: 422,
+    })
   })
 })

@@ -35,5 +35,5 @@ export const env = {
   bhuvanStateCode: import.meta.env.VITE_BHUVAN_STATE_CODE ?? "MH",
   bhuvanDistrict: import.meta.env.VITE_BHUVAN_DISTRICT ?? "PUNE",
   supabaseUrl: import.meta.env.VITE_SUPABASE_URL ?? "",
-supabaseAnonKey: import.meta.env.VITE_SUPABASE_ANON_KEY ?? "",
+  supabaseAnonKey: import.meta.env.VITE_SUPABASE_ANON_KEY ?? "",
 }

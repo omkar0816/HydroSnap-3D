@@ -45,6 +45,16 @@ VITE_WATERSHED_ATTRIBUTION=<attribution text required by the licence>
 ```
 
 The map then draws `basins` (zoom 0–8), `watersheds` (8–11) and
-`micro_watersheds` (11+) under the demo layers. To make clicking/upload
-resolution use real polygons too, also load the GeoJSON into the backend
-(Phase 2, `ST_Contains`) or into `getWatersheds()`.
+`micro_watersheds` (11+) under the demo layers. Import the generated watershed
+GeoJSON into PostGIS so point resolution and upload verification use the same
+boundaries:
+
+```sh
+pnpm db:import-watersheds build/watersheds/watersheds.geojson \
+  --source "CWC India-WRIS" \
+  --licence "<dataset licence and attribution>"
+```
+
+The importer validates each Polygon/MultiPolygon with `ST_IsValid` and upserts
+the corresponding watershed payload with `demo=false`. Confirm IDs and required
+attribution against the source dataset before importing.

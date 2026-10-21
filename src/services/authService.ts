@@ -30,7 +30,7 @@ export class AuthFlowError extends Error {
 export class OfficerLookupError extends Error {
   constructor(
     message: string,
-    public readonly kind: "not-officer" | "pending" | "suspended" | "unavailable",
+    public readonly kind: "not-officer" | "suspended" | "unavailable",
   ) {
     super(message)
     this.name = "OfficerLookupError"
@@ -238,12 +238,6 @@ export async function fetchOfficerProfile(
     state: data.state,
     district: data.district,
     status: data.status,
-  }
-  if (profile.status === "pending") {
-    throw new OfficerLookupError(
-      "Your officer account is awaiting approval. Contact your department administrator.",
-      "pending",
-    )
   }
   if (profile.status === "suspended") {
     throw new OfficerLookupError(

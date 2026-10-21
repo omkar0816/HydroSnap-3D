@@ -1,5 +1,6 @@
 import exifr from "exifr"
 import type pg from "pg"
+import { HttpError } from "./validation.ts"
 import type { ExifSummary, TrustAssessment } from "../src/types/domain.ts"
 import {
   evaluateTrustRules,
@@ -111,7 +112,9 @@ export async function verifyUpload(input: {
      FROM watersheds WHERE id = $1`,
     [watershedId, longitude, latitude],
   )
-  if (!watershed.rows[0]) throw new Error("Selected watershed was not found.")
+  if (!watershed.rows[0]) {
+    throw new HttpError("Selected watershed was not found.", 422)
+  }
   const containing = await client.query<{ id: string }>(
     `SELECT id FROM watersheds
      WHERE ST_Covers(boundary, ST_SetSRID(ST_MakePoint($1, $2), 4326))

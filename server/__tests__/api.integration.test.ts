@@ -79,6 +79,14 @@ describe("API against an isolated PostGIS schema", () => {
       database: "connected",
       postgis: "ready",
     })
+
+    const vercelResponse = await fetch(`${baseUrl}/api/health`)
+    expect(vercelResponse.status).toBe(200)
+    expect(await vercelResponse.json()).toEqual({
+      status: "ok",
+      database: "connected",
+      postgis: "ready",
+    })
   })
 
   it("rejects unauthenticated user and photo requests", async () => {

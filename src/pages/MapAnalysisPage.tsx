@@ -339,14 +339,18 @@ export function MapAnalysisPage() {
         const position: [number, number] = [coords.longitude, coords.latitude]
         setFocusPosition(position)
         void resolveWatershed(position, watersheds)
-          .then((found) => {
-            if (found) {
-              openWatershed(found.id)
-              context?.notify(`You are inside ${found.name} (${found.code}).`)
-            } else {
+          .then((result) => {
+            if (result.status === "inside") {
+              openWatershed(result.watershed.id)
+              context?.notify(
+                `You are inside ${result.watershed.name} (${result.watershed.code}).`,
+              )
+            } else if (result.status === "outside") {
               context?.notify(
                 "Your location is outside every watershed loaded in this workspace.",
               )
+            } else {
+              context?.notify(result.error)
             }
           })
           .catch((error: unknown) => {
